@@ -305,9 +305,29 @@ input::placeholder{color:var(--muted);}
       <div class="pay-option selected" data-method="cash" onclick="selectPayment('cash')">
         <div style="font-size:20px;margin-bottom:4px;">💵</div><div style="font-size:13px;font-weight:600;">Cash</div>
       </div>
-      <div class="pay-option" data-method="wallet" onclick="selectPayment('wallet')">
-        <div style="font-size:20px;margin-bottom:4px;">👛</div><div style="font-size:13px;font-weight:600;">Wallet</div>
+      <div class="pay-option" data-method="card" onclick="selectPayment('card')">
+        <div style="font-size:20px;margin-bottom:4px;">💳</div><div style="font-size:13px;font-weight:600;">Card</div>
       </div>
+      <div class="pay-option" data-method="wallet" onclick="selectPayment('wallet')">
+        <div style="font-size:20px;margin-bottom:4px;">👜</div><div style="font-size:13px;font-weight:600;">Wallet</div>
+      </div>
+    </div>
+    <div id="card-details" style="display:none;margin-bottom:12px;">
+      <div class="input-wrap" style="margin-bottom:8px;">
+        <span class="input-icon">💳</span>
+        <input type="text" id="card-number" placeholder="Card number" maxlength="19" oninput="formatCard(this)"/>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div class="input-wrap" style="flex:1;margin-bottom:0;">
+          <span class="input-icon" style="font-size:12px;">📅</span>
+          <input type="text" id="card-expiry" placeholder="MM/YY" maxlength="5" oninput="formatExpiry(this)"/>
+        </div>
+        <div class="input-wrap" style="flex:1;margin-bottom:0;">
+          <span class="input-icon" style="font-size:12px;">🔒</span>
+          <input type="text" id="card-cvv" placeholder="CVV" maxlength="3"/>
+        </div>
+      </div>
+      <p class="fs-12 color-muted mt-8" style="text-align:center;">🔒 Secured by PayFast · 256-bit SSL</p>
     </div>
     <p class="fs-12 color-muted mb-12" id="wallet-balance-label"></p>
     <button class="btn btn-primary" id="book-btn" onclick="bookRide()">Book Ride</button>
@@ -625,7 +645,17 @@ async function loadFareConfig(){
 
 async function checkAuth(){
   const{data:{session}}=await sb.auth.getSession();
-  if(session){currentUser=session.user;await loadProfile();}
+  if(session){
+    currentUser=session.user;
+    await loadProfile();
+    switchTab('home');
+  } else {
+    // Not logged in — show login gate
+    document.getElementById('bottom-nav').style.display='none';
+    document.querySelectorAll('.screen,.tab-screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('tab-profile').classList.add('active');
+    document.getElementById('screen-home').classList.remove('active');
+  }
 }
 
 // TAB NAVIGATION
@@ -799,10 +829,29 @@ function updateConfirmScreen(){
 function selectPayment(method){
   selectedPayment=method;
   document.querySelectorAll('.pay-option').forEach(o=>o.classList.toggle('selected',o.dataset.method===method));
+  document.getElementById('card-details').style.display = method==='card' ? 'block' : 'none';
+}
+
+function formatCard(el){
+  let v = el.value.replace(/\D/g,'').substring(0,16);
+  el.value = v.replace(/(.{4})/g,'$1 ').trim();
+}
+
+function formatExpiry(el){
+  let v = el.value.replace(/\D/g,'');
+  if(v.length>=2) v = v.substring(0,2)+'/'+v.substring(2,4);
+  el.value = v;
 }
 
 // BOOK
 async function bookRide(){
+  if(!currentUser){toast('Please sign in to book a ride.');switchTab('profile');return;}
+  if(selectedPayment==='card'){
+    const num=document.getElementById('card-number').value.replace(/\s/g,'');
+    const exp=document.getElementById('card-expiry').value;
+    const cvv=document.getElementById('card-cvv').value;
+    if(num.length<16||!exp||cvv.length<3){toast('Please enter valid card details.');return;}
+  }
   const btn=document.getElementById('book-btn');
   btn.disabled=true;btn.textContent='Booking…';
   const{passengerFare,driverEarnings,via99Fee}=calcFare(selectedRide);
@@ -1040,7 +1089,10 @@ async function signIn(){
   if(!email||!pass){toast('Enter email and password.');return;}
   const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
   if(error){toast(error.message);return;}
-  currentUser=data.user;await loadProfile();toast('Welcome back!');
+  currentUser=data.user;await loadProfile();
+  toast('Welcome back!');
+  document.getElementById('bottom-nav').style.display='flex';
+  switchTab('home');
 }
 async function signUp(){
   const name=document.getElementById('signup-name').value.trim();
@@ -1052,7 +1104,10 @@ async function signUp(){
   if(error){toast(error.message);return;}
   currentUser=data.user;
   await sb.from('profiles').insert({id:currentUser.id,full_name:name,phone,role:'passenger',wallet_balance:0});
-  await loadProfile();toast('Account created!');
+  await loadProfile();
+  toast('Account created! Welcome to Via99.');
+  document.getElementById('bottom-nav').style.display='flex';
+  switchTab('home');
 }
 async function loadProfile(){
   if(!currentUser)return;
