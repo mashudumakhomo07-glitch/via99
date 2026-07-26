@@ -1085,7 +1085,7 @@ async function pollTrip() {
   if (data.status === 'matched') {
     stopPolling();
     showMatchedScreen(data);
-    subscribeDriverLocation(data.driver_id);
+    if (!realtimeSub) subscribeDriverLocation(data.driver_id);
   } else if (data.status === 'picking_up') {
     showScreen('screen-pickup');
     updatePickupScreen(data);
@@ -1191,7 +1191,50 @@ function updateDriverMarker(lat, lng) {
   } else {
     driverMarker.setLngLat([lng, lat]);
   }
-  map.panTo([lng, lat]);
+
+  // Keep map centered on driver
+  const screen = document.querySelector('.screen.active')?.id;
+  if (screen === 'screen-matched' || screen === 'screen-pickup') {
+    map.panTo([lng, lat], { duration: 800 });
+    // Draw live route from driver to passenger pickup
+    if (currentTrip && currentTrip.pickup_lat) {
+      drawPassengerRoute(lat, lng, currentTrip.pickup_lat, currentTrip.pickup_lng);
+    }
+  } else if (screen === 'screen-intrip') {
+    map.panTo([lng, lat], { duration: 800 });
+    // Draw live route from driver to destination
+    if (currentTrip && currentTrip.dest_lat) {
+      drawPassengerRoute(lat, lng, currentTrip.dest_lat, currentTrip.dest_lng);
+    }
+  }
+}
+
+let passengerRouteThrottle = null;
+async function drawPassengerRoute(fromLat, fromLng, toLat, toLng) {
+  // Throttle to once every 15 seconds to avoid API hammering
+  if (passengerRouteThrottle) return;
+  passengerRouteThrottle = setTimeout(() => { passengerRouteThrottle = null; }, 15000);
+
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.routes || !data.routes.length) return;
+    const geometry = data.routes[0].geometry;
+
+    const addLayer = () => {
+      if (map.getLayer('route')) map.removeLayer('route');
+      if (map.getSource('route')) map.removeSource('route');
+      map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry } });
+      map.addLayer({
+        id: 'route', type: 'line', source: 'route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#E8261A', 'line-width': 4 }
+      });
+    };
+    if (map.isStyleLoaded()) addLayer();
+    else map.once('style.load', addLayer);
+  } catch(e) {}
 }
 
 function unsubscribeDriver() {

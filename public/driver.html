@@ -268,6 +268,39 @@
   }
   .toggle-switch.on::after { transform: translateX(20px); }
 
+  /* ── NAV MODAL ── */
+  .nav-modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: flex-end;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  .nav-modal {
+    width: 100%;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    border-top: 1px solid var(--border);
+    padding: 20px 20px 36px;
+    animation: slideUp 0.25s cubic-bezier(0.16,1,0.3,1);
+  }
+  .nav-modal-title {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    letter-spacing: 0.8px; text-transform: uppercase;
+    text-align: center; margin-bottom: 16px;
+  }
+  .nav-option {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    cursor: pointer; margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  .nav-option:active { border-color: var(--red); }
+  .nav-option-icon { font-size: 26px; }
+  .nav-option-name { font-size: 15px; font-weight: 600; }
+  .nav-option-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
   /* misc */
   .text-center { text-align: center; }
   .mt-8  { margin-top: 8px; }
@@ -481,6 +514,7 @@
         </div>
       </div>
     </div>
+    <button class="btn btn-ghost mb-12" onclick="openNavModal('pickup')">🧭 Navigate to pickup</button>
     <button class="btn btn-success" onclick="arrivedAtPickup()">✓ Arrived at pickup</button>
     <button class="btn btn-danger mt-8" onclick="cancelCurrentTrip()">Cancel trip</button>
   </div>
@@ -543,6 +577,7 @@
       <span class="fare-val" id="intrip-dist">—</span>
     </div>
     <div class="divider"></div>
+    <button class="btn btn-ghost mb-12" onclick="openNavModal('dest')">🧭 Navigate to destination</button>
     <button class="btn btn-success" onclick="endTrip()">🏁 End trip</button>
   </div>
 </div>
@@ -582,6 +617,37 @@
     </div>
 
     <button class="btn btn-primary" onclick="backToDashboard()">Back to dashboard</button>
+  </div>
+</div>
+
+<!-- NAV MODAL -->
+<div id="nav-modal" style="display:none;" onclick="closeNavModal(event)">
+  <div class="nav-modal-overlay">
+    <div class="nav-modal" onclick="event.stopPropagation()">
+      <div class="nav-modal-title">Open navigation in</div>
+      <div class="nav-option" onclick="launchNav('waze')">
+        <div class="nav-option-icon">🗺️</div>
+        <div>
+          <div class="nav-option-name">Waze</div>
+          <div class="nav-option-sub">Community-based navigation</div>
+        </div>
+      </div>
+      <div class="nav-option" onclick="launchNav('google')">
+        <div class="nav-option-icon">📍</div>
+        <div>
+          <div class="nav-option-name">Google Maps</div>
+          <div class="nav-option-sub">Turn-by-turn directions</div>
+        </div>
+      </div>
+      <div class="nav-option" onclick="launchNav('apple')">
+        <div class="nav-option-icon">🧭</div>
+        <div>
+          <div class="nav-option-name">Default Maps</div>
+          <div class="nav-option-sub">Built-in navigation</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost mt-8" onclick="closeNavModal()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -965,9 +1031,10 @@ function showPickupScreen() {
   document.getElementById('pickup-eta').textContent =
     currentTrip.estimated_duration_min ? `~${Math.round(currentTrip.estimated_duration_min / 2)} min` : '—';
 
-  // Draw route to pickup
+  // Draw route to pickup and refresh as driver moves
   if (currentTrip.pickup_lat && currentTrip.pickup_lng) {
     drawRoute(driverLat, driverLng, currentTrip.pickup_lat, currentTrip.pickup_lng);
+    startRouteRefresh(currentTrip.pickup_lat, currentTrip.pickup_lng);
   }
 
   showScreen('screen-pickup');
@@ -1012,10 +1079,11 @@ function showIntripScreen() {
   document.getElementById('intrip-dist').textContent =
     currentTrip.estimated_distance_km ? `${Number(currentTrip.estimated_distance_km).toFixed(1)} km` : '—';
 
-  // Draw route to destination
+  // Draw route to destination and refresh as driver moves
   if (currentTrip.dest_lat && currentTrip.dest_lng) {
     drawRoute(driverLat, driverLng, currentTrip.dest_lat, currentTrip.dest_lng);
     placeDestMarker(currentTrip.dest_lat, currentTrip.dest_lng);
+    startRouteRefresh(currentTrip.dest_lat, currentTrip.dest_lng);
   }
 
   showScreen('screen-intrip');
@@ -1058,6 +1126,7 @@ function showCompleteScreen() {
   document.getElementById('complete-total').textContent          = `R${todayEarnings.toFixed(2)}`;
   document.getElementById('complete-method').textContent         = `Paid by ${currentTrip.payment_method || 'cash'}`;
 
+  stopRouteRefresh();
   clearRoute();
   removePickupMarker();
   removeDestMarker();
@@ -1162,6 +1231,59 @@ function clearRoute() {
     if (map.getLayer('driver-route')) map.removeLayer('driver-route');
     if (map.getSource('driver-route')) map.removeSource('driver-route');
   } catch (e) {}
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION MODAL
+// ═══════════════════════════════════════════
+let navTarget = null; // { lat, lng }
+
+function openNavModal(mode) {
+  if (!currentTrip) return;
+  if (mode === 'pickup') {
+    navTarget = { lat: currentTrip.pickup_lat, lng: currentTrip.pickup_lng };
+  } else {
+    navTarget = { lat: currentTrip.dest_lat, lng: currentTrip.dest_lng };
+  }
+  document.getElementById('nav-modal').style.display = 'block';
+}
+
+function closeNavModal(e) {
+  if (!e || e.target === document.getElementById('nav-modal')) {
+    document.getElementById('nav-modal').style.display = 'none';
+  }
+}
+
+function launchNav(app) {
+  if (!navTarget) return;
+  const { lat, lng } = navTarget;
+  let url = '';
+  if (app === 'waze') {
+    url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+  } else if (app === 'google') {
+    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  } else {
+    url = `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+  }
+  window.open(url, '_blank');
+  closeNavModal();
+}
+
+// ═══════════════════════════════════════════
+// LIVE ROUTE REFRESH
+// Redraw route every 30s as driver moves
+// ═══════════════════════════════════════════
+let routeRefreshInterval = null;
+
+function startRouteRefresh(toLat, toLng) {
+  stopRouteRefresh();
+  routeRefreshInterval = setInterval(() => {
+    drawRoute(driverLat, driverLng, toLat, toLng);
+  }, 30000);
+}
+
+function stopRouteRefresh() {
+  if (routeRefreshInterval) { clearInterval(routeRefreshInterval); routeRefreshInterval = null; }
 }
 
 // ═══════════════════════════════════════════
