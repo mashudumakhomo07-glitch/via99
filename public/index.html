@@ -459,6 +459,42 @@ input::placeholder{color:var(--muted);}
       <button class="btn btn-primary" style="flex:1;" onclick="topUpWallet()">+ Top Up</button>
       <button class="btn btn-ghost" style="flex:1;" onclick="showPayoutTab()">Withdraw</button>
     </div>
+
+    <!-- SAVED CARDS -->
+    <p class="label">Saved cards</p>
+    <div id="saved-cards-list">
+      <p class="color-muted fs-13 mt-8 mb-12">No saved cards yet.</p>
+    </div>
+    <div id="add-card-form" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <p class="label mb-12">Add new card</p>
+        <div class="input-wrap">
+          <span class="input-icon">💳</span>
+          <input type="text" id="wallet-card-number" placeholder="Card number" maxlength="19" oninput="formatCard(this)"/>
+        </div>
+        <div class="input-wrap">
+          <span class="input-icon">🧑</span>
+          <input type="text" id="wallet-card-name" placeholder="Cardholder name"/>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div class="input-wrap" style="flex:1;margin-bottom:0;">
+            <span class="input-icon" style="font-size:12px;">📅</span>
+            <input type="text" id="wallet-card-expiry" placeholder="MM/YY" maxlength="5" oninput="formatExpiry(this)"/>
+          </div>
+          <div class="input-wrap" style="flex:1;margin-bottom:0;">
+            <span class="input-icon" style="font-size:12px;">🔒</span>
+            <input type="text" id="wallet-card-cvv" placeholder="CVV" maxlength="3"/>
+          </div>
+        </div>
+        <p class="fs-12 color-muted mt-8 mb-12" style="text-align:center;">🔒 Secured by PayFast · 256-bit SSL</p>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" style="flex:1;" onclick="saveCard()">Save card</button>
+          <button class="btn btn-ghost" style="flex:1;" onclick="toggleAddCardForm(false)">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-ghost mb-16" id="add-card-btn" onclick="toggleAddCardForm(true)">+ Add card</button>
+
     <p class="label">Transactions</p>
   </div>
   <div style="padding:0 20px 100px;" id="wallet-tx-list">
@@ -1023,6 +1059,7 @@ async function loadTripsTab(){
 
 // ═══ WALLET TAB ═══
 async function loadWalletTab(){
+  renderSavedCards();
   if(!currentUser){
     document.getElementById('wallet-balance-display').textContent='R0.00';
     document.getElementById('wallet-tx-list').innerHTML='<p class="color-muted fs-13 text-center mt-8">Sign in to view your wallet.</p>';
@@ -1050,6 +1087,72 @@ async function loadWalletTab(){
 }
 
 function showPayoutTab(){switchTab('payout');}
+
+// ═══ SAVED CARDS ═══
+let savedCards = [];
+
+function toggleAddCardForm(show) {
+  document.getElementById('add-card-form').style.display = show ? 'block' : 'none';
+  document.getElementById('add-card-btn').style.display  = show ? 'none' : 'block';
+  if (!show) {
+    document.getElementById('wallet-card-number').value  = '';
+    document.getElementById('wallet-card-name').value    = '';
+    document.getElementById('wallet-card-expiry').value  = '';
+    document.getElementById('wallet-card-cvv').value     = '';
+  }
+}
+
+function saveCard() {
+  const num    = document.getElementById('wallet-card-number').value.replace(/\s/g,'');
+  const name   = document.getElementById('wallet-card-name').value.trim();
+  const expiry = document.getElementById('wallet-card-expiry').value.trim();
+  const cvv    = document.getElementById('wallet-card-cvv').value.trim();
+
+  if (num.length < 16) { toast('Enter a valid 16-digit card number.'); return; }
+  if (!name)            { toast('Enter cardholder name.'); return; }
+  if (expiry.length < 5){ toast('Enter a valid expiry date.'); return; }
+  if (cvv.length < 3)   { toast('Enter a valid CVV.'); return; }
+
+  // Detect card type
+  const type = num.startsWith('4') ? 'Visa'
+             : num.startsWith('5') ? 'Mastercard'
+             : 'Card';
+
+  const card = {
+    id:     Date.now(),
+    type,
+    last4:  num.slice(-4),
+    name,
+    expiry,
+  };
+  savedCards.push(card);
+  renderSavedCards();
+  toggleAddCardForm(false);
+  toast(`${type} ending in ${card.last4} saved.`);
+}
+
+function renderSavedCards() {
+  const el = document.getElementById('saved-cards-list');
+  if (!savedCards.length) {
+    el.innerHTML = '<p class="color-muted fs-13 mt-8 mb-12">No saved cards yet.</p>';
+    return;
+  }
+  el.innerHTML = savedCards.map(c => `
+    <div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="font-size:28px;">${c.type === 'Visa' ? '💳' : c.type === 'Mastercard' ? '💳' : '💳'}</div>
+      <div style="flex:1;">
+        <div class="fw-600">${c.type} •••• ${c.last4}</div>
+        <div class="fs-12 color-muted mt-8">${c.name} · Expires ${c.expiry}</div>
+      </div>
+      <div style="color:var(--muted);cursor:pointer;font-size:18px;" onclick="removeCard(${c.id})">🗑️</div>
+    </div>`).join('');
+}
+
+function removeCard(id) {
+  savedCards = savedCards.filter(c => c.id !== id);
+  renderSavedCards();
+  toast('Card removed.');
+}
 
 async function topUpWallet(){
   toast('Top-up via PayFast coming soon.');
