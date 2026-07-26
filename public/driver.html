@@ -301,6 +301,49 @@
   .nav-option-name { font-size: 15px; font-weight: 600; }
   .nav-option-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
+  /* BOTTOM NAV */
+  .bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;background:rgba(10,10,11,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:10px 0 28px;}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 0;color:var(--muted);font-size:10px;font-weight:500;transition:color 0.2s;}
+  .nav-item.active{color:var(--green);}
+  .nav-icon{font-size:22px;}
+
+  /* TAB SCREEN */
+  .tab-screen{position:fixed;inset:0;z-index:20;display:none;flex-direction:column;background:var(--bg);overflow-y:auto;pointer-events:none;}
+  .tab-screen.active{display:flex;pointer-events:auto;}
+
+  /* CARDS */
+  .card{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;}
+
+  /* WALLET */
+  .wallet-card{background:linear-gradient(135deg,#00C853 0%,#00962f 100%);border-radius:20px;padding:24px;margin-bottom:20px;text-align:center;}
+  .wallet-balance{font-size:42px;font-weight:700;margin:8px 0 4px;}
+  .wallet-sub{font-size:13px;opacity:0.85;}
+  .wallet-tx{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);}
+  .wallet-tx-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  .wallet-tx-info{flex:1;}
+  .wallet-tx-desc{font-size:14px;font-weight:500;}
+  .wallet-tx-date{font-size:12px;color:var(--muted);margin-top:2px;}
+  .wallet-tx-amt{font-size:15px;font-weight:600;}
+
+  /* PAYOUT */
+  .payout-method{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface2);border:1.5px solid var(--border);border-radius:14px;cursor:pointer;margin-bottom:10px;transition:border-color 0.2s;}
+  .payout-method.selected{border-color:var(--green);background:rgba(0,200,83,0.06);}
+  .payout-method-icon{font-size:26px;}
+  .payout-method-info{flex:1;}
+  .payout-method-name{font-size:14px;font-weight:600;}
+  .payout-method-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .payout-check{font-size:18px;color:var(--green);opacity:0;}
+  .payout-method.selected .payout-check{opacity:1;}
+
+  /* BADGE */
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;}
+  .badge-green{background:rgba(0,200,83,0.12);color:var(--green);border:1px solid rgba(0,200,83,0.3);}
+  .badge-red{background:rgba(232,38,26,0.12);color:var(--red);border:1px solid rgba(232,38,26,0.3);}
+  .badge-muted{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+  /* PROFILE */
+  .profile-avatar{width:80px;height:80px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 12px;}
+
   /* misc */
   .text-center { text-align: center; }
   .mt-8  { margin-top: 8px; }
@@ -620,6 +663,129 @@
   </div>
 </div>
 
+<!-- BOTTOM NAV -->
+<div class="bottom-nav" id="driver-bottom-nav" style="display:none;">
+  <div class="nav-item active" id="dnav-dashboard" onclick="driverSwitchTab('dashboard')">
+    <span class="nav-icon">🏠</span>Home
+  </div>
+  <div class="nav-item" id="dnav-trips" onclick="driverSwitchTab('trips')">
+    <span class="nav-icon">📋</span>Trips
+  </div>
+  <div class="nav-item" id="dnav-earnings" onclick="driverSwitchTab('earnings')">
+    <span class="nav-icon">💰</span>Earnings
+  </div>
+  <div class="nav-item" id="dnav-payout" onclick="driverSwitchTab('payout')">
+    <span class="nav-icon">🏦</span>Payout
+  </div>
+  <div class="nav-item" id="dnav-profile" onclick="driverSwitchTab('profile')">
+    <span class="nav-icon">👤</span>Profile
+  </div>
+</div>
+
+<!-- TAB: TRIPS -->
+<div id="dtab-trips" class="tab-screen">
+  <div style="padding:52px 20px 0;">
+    <p style="font-size:22px;font-weight:700;margin-bottom:4px;">Trip History</p>
+    <p class="color-muted fs-13 mb-16">All your completed rides</p>
+  </div>
+  <div style="padding:0 20px 100px;" id="driver-trips-list">
+    <p class="color-muted fs-13 text-center mt-8">No trips yet.</p>
+  </div>
+</div>
+
+<!-- TAB: EARNINGS -->
+<div id="dtab-earnings" class="tab-screen">
+  <div style="padding:52px 20px 100px;">
+    <p style="font-size:22px;font-weight:700;margin-bottom:16px;">Earnings</p>
+    <div style="background:linear-gradient(135deg,#00C853 0%,#00962f 100%);border-radius:20px;padding:24px;margin-bottom:20px;text-align:center;">
+      <p style="font-size:13px;opacity:0.85;">Total earned</p>
+      <div style="font-size:42px;font-weight:700;margin:8px 0 4px;" id="earn-total">R0.00</div>
+      <p style="font-size:13px;opacity:0.85;" id="earn-trips-label">0 trips</p>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div class="stat-box"><div class="stat-val color-green" id="earn-today">R0.00</div><div class="stat-label">Today</div></div>
+      <div class="stat-box"><div class="stat-val color-green" id="earn-week">R0.00</div><div class="stat-label">This week</div></div>
+      <div class="stat-box"><div class="stat-val color-green" id="earn-month">R0.00</div><div class="stat-label">This month</div></div>
+    </div>
+    <p class="label">Earnings breakdown</p>
+    <div class="card">
+      <div class="fare-row"><span class="fare-label">Gross fares</span><span class="fare-val" id="earn-gross">R0.00</span></div>
+      <div class="fare-row"><span class="fare-label">Via99 commission (5%)</span><span class="fare-val color-red" id="earn-commission">-R0.00</span></div>
+      <div class="divider"></div>
+      <div class="fare-row" style="margin-bottom:0;"><span style="font-size:15px;font-weight:600;">Net earnings</span><span style="font-size:18px;font-weight:700;color:var(--green);" id="earn-net">R0.00</span></div>
+    </div>
+    <div class="card">
+      <div class="fare-row"><span class="fare-label">Acceptance rate</span><span class="fare-val" id="earn-acceptance">—%</span></div>
+      <div class="fare-row" style="margin-bottom:0;"><span class="fare-label">Average per trip</span><span class="fare-val color-green" id="earn-avg">R0.00</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: PAYOUT -->
+<div id="dtab-payout" class="tab-screen">
+  <div style="padding:52px 20px 100px;">
+    <p style="font-size:22px;font-weight:700;margin-bottom:16px;">Payout</p>
+    <div class="wallet-card">
+      <p class="wallet-sub">Available for withdrawal</p>
+      <div class="wallet-balance" id="driver-payout-available">R0.00</div>
+      <p class="wallet-sub">Via99 pays out every Friday</p>
+    </div>
+    <p class="label">Withdraw to</p>
+    <div class="payout-method selected" id="dpm-bank" onclick="selectDriverPayoutMethod('bank')">
+      <div class="payout-method-icon">🏦</div>
+      <div class="payout-method-info"><div class="payout-method-name">Bank Account</div><div class="payout-method-sub">2–3 business days</div></div>
+      <span class="payout-check">✓</span>
+    </div>
+    <div class="payout-method" id="dpm-instant" onclick="selectDriverPayoutMethod('instant')">
+      <div class="payout-method-icon">⚡</div>
+      <div class="payout-method-info"><div class="payout-method-name">Instant Pay</div><div class="payout-method-sub">Within minutes · R5 fee</div></div>
+      <span class="payout-check">✓</span>
+    </div>
+    <div class="divider"></div>
+    <p class="label">Amount</p>
+    <div class="input-wrap">
+      <span class="input-icon">R</span>
+      <input type="text" id="driver-payout-amount" placeholder="0.00" style="padding-left:32px;"/>
+    </div>
+    <p class="label mt-12">Bank details</p>
+    <div class="input-wrap"><span class="input-icon">🏦</span><input type="text" id="driver-payout-bank" placeholder="Bank name"/></div>
+    <div class="input-wrap"><span class="input-icon">#</span><input type="text" id="driver-payout-acc" placeholder="Account number"/></div>
+    <div class="input-wrap"><span class="input-icon">🔢</span><input type="text" id="driver-payout-branch" placeholder="Branch code"/></div>
+    <button class="btn btn-success mt-8" onclick="requestDriverPayout()">Request withdrawal</button>
+    <p class="fs-12 color-muted text-center mt-12">Payouts processed every Friday. Instant pay available 24/7 with R5 fee.</p>
+  </div>
+</div>
+
+<!-- TAB: PROFILE -->
+<div id="dtab-profile" class="tab-screen">
+  <div style="padding:52px 20px 100px;">
+    <div class="text-center mb-16">
+      <div class="profile-avatar">🧑</div>
+      <p style="font-size:20px;font-weight:700;" id="dprofile-name">—</p>
+      <p class="color-muted fs-13" id="dprofile-email">—</p>
+      <p class="color-muted fs-13" id="dprofile-phone">—</p>
+    </div>
+    <p class="label">Vehicle</p>
+    <div class="card">
+      <div class="fare-row"><span class="fare-label">Make & Model</span><span class="fare-val" id="dprofile-car">—</span></div>
+      <div class="fare-row"><span class="fare-label">Colour</span><span class="fare-val" id="dprofile-colour">—</span></div>
+      <div class="fare-row" style="margin-bottom:0;"><span class="fare-label">Plate</span><span class="fare-val" id="dprofile-plate">—</span></div>
+    </div>
+    <p class="label">Stats</p>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div class="stat-box"><div class="stat-val" id="dprofile-trips">0</div><div class="stat-label">Total trips</div></div>
+      <div class="stat-box"><div class="stat-val color-green" id="dprofile-rating">5.0 ⭐</div><div class="stat-label">Rating</div></div>
+      <div class="stat-box"><div class="stat-val" id="dprofile-acceptance">100%</div><div class="stat-label">Acceptance</div></div>
+    </div>
+    <p class="label">Account</p>
+    <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">🔔 Notifications</span><span class="color-muted">→</span></div></div>
+    <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">❓ Help & Support</span><span class="color-muted">→</span></div></div>
+    <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">📄 Documents</span><span class="color-muted">→</span></div></div>
+    <div class="divider"></div>
+    <button class="btn btn-danger" onclick="showSignOut()">Sign out</button>
+  </div>
+</div>
+
 <!-- NAV MODAL -->
 <div id="nav-modal" style="display:none;" onclick="closeNavModal(event)">
   <div class="nav-modal-overlay">
@@ -691,6 +857,7 @@ async function init() {
   if (session) {
     currentUser = session.user;
     await loadDriverData();
+    document.getElementById('driver-bottom-nav').style.display = 'flex';
     showScreen('screen-dashboard');
   }
   getDriverLocation();
@@ -727,8 +894,16 @@ function getDriverLocation() {
 // SCREEN NAVIGATION
 // ═══════════════════════════════════════════
 function showScreen(id) {
-  document.querySelectorAll('.screen, .screen-full').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen, .screen-full, .tab-screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Show bottom nav only on dashboard
+  const nav = document.getElementById('driver-bottom-nav');
+  if (id === 'screen-dashboard') {
+    nav.style.display = 'flex';
+    document.getElementById('dnav-dashboard').classList.add('active');
+  } else {
+    nav.style.display = 'none';
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -759,6 +934,7 @@ async function signIn() {
   if (error) { toast(error.message); return; }
   currentUser = data.user;
   await loadDriverData();
+  document.getElementById('driver-bottom-nav').style.display = 'flex';
   showScreen('screen-dashboard');
 }
 
@@ -850,6 +1026,7 @@ async function goOnline() {
   isOnline = true;
   await sb.from('drivers').update({ is_online: true }).eq('id', currentUser.id);
   updateToggleUI();
+  document.getElementById('driver-bottom-nav').style.display = 'none';
   showScreen('screen-online');
   startLocationBroadcast();
   startPolling();
@@ -858,6 +1035,9 @@ async function goOnline() {
 
 async function goOffline() {
   await goOfflineSilent();
+  document.getElementById('driver-bottom-nav').style.display = 'flex';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('dnav-dashboard').classList.add('active');
   showScreen('screen-dashboard');
   await loadTodayStats();
   toast('You are now offline');
@@ -1138,11 +1318,11 @@ function showCompleteScreen() {
 async function backToDashboard() {
   await loadTodayStats();
   await loadTripHistory();
+  document.getElementById('driver-bottom-nav').style.display = 'flex';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('dnav-dashboard').classList.add('active');
   showScreen('screen-dashboard');
-  if (isOnline) {
-    showScreen('screen-online');
-    startPolling();
-  }
+  if (isOnline) { showScreen('screen-online'); document.getElementById('driver-bottom-nav').style.display = 'none'; startPolling(); }
 }
 
 // ═══════════════════════════════════════════
@@ -1231,6 +1411,141 @@ function clearRoute() {
     if (map.getLayer('driver-route')) map.removeLayer('driver-route');
     if (map.getSource('driver-route')) map.removeSource('driver-route');
   } catch (e) {}
+}
+
+// ═══════════════════════════════════════════
+// DRIVER TAB NAVIGATION
+// ═══════════════════════════════════════════
+let selectedDriverPayoutMethod = 'bank';
+
+function driverSwitchTab(tab) {
+  document.querySelectorAll('.tab-screen, .screen-full').forEach(s => {
+    if(s.id !== 'screen-login') s.classList.remove('active');
+  });
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  if (tab === 'dashboard') {
+    document.getElementById('screen-dashboard').classList.add('active');
+    document.getElementById('dnav-dashboard').classList.add('active');
+  } else if (tab === 'trips') {
+    document.getElementById('dtab-trips').classList.add('active');
+    document.getElementById('dnav-trips').classList.add('active');
+    loadDriverTripsTab();
+  } else if (tab === 'earnings') {
+    document.getElementById('dtab-earnings').classList.add('active');
+    document.getElementById('dnav-earnings').classList.add('active');
+    loadEarningsTab();
+  } else if (tab === 'payout') {
+    document.getElementById('dtab-payout').classList.add('active');
+    document.getElementById('dnav-payout').classList.add('active');
+    loadPayoutTab();
+  } else if (tab === 'profile') {
+    document.getElementById('dtab-profile').classList.add('active');
+    document.getElementById('dnav-profile').classList.add('active');
+    loadProfileTab();
+  }
+}
+
+async function loadDriverTripsTab() {
+  if (!currentUser) return;
+  const { data } = await sb.from('trips').select('*')
+    .eq('driver_id', currentUser.id)
+    .order('created_at', { ascending: false }).limit(30);
+  const el = document.getElementById('driver-trips-list');
+  if (!data || !data.length) { el.innerHTML = '<p class="color-muted fs-13 text-center mt-8">No trips yet.</p>'; return; }
+  el.innerHTML = data.map(t => {
+    const status = t.status;
+    const badgeClass = status === 'completed' ? 'badge-green' : status === 'cancelled' ? 'badge-red' : 'badge-muted';
+    return `<div class="card">
+      <div class="row mb-8">
+        <span class="fw-600">${(t.dest_address || 'Unknown').split(',')[0]}</span>
+        <span class="badge ${badgeClass}">${status}</span>
+      </div>
+      <div class="fare-row"><span class="fare-label">Pickup</span><span class="fare-val" style="font-size:12px;max-width:60%;text-align:right;">${(t.pickup_address || '—').split(',')[0]}</span></div>
+      <div class="fare-row"><span class="fare-label">Distance</span><span class="fare-val">${t.estimated_distance_km ? Number(t.estimated_distance_km).toFixed(1) + ' km' : '—'}</span></div>
+      <div class="fare-row"><span class="fare-label">Payment</span><span class="fare-val">${t.payment_method || '—'}</span></div>
+      <div class="divider"></div>
+      <div class="fare-row" style="margin-bottom:0;">
+        <span class="fare-label" style="font-size:12px;">${new Date(t.created_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        <span class="fare-val fw-600 color-green">R${Number(t.driver_earnings || 0).toFixed(2)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadEarningsTab() {
+  if (!currentUser || !driverRecord) return;
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const { data: allTrips } = await sb.from('trips').select('driver_earnings, via99_fee, passenger_fare, created_at')
+    .eq('driver_id', currentUser.id).eq('status', 'completed');
+
+  const { data: todayTrips } = await sb.from('trips').select('driver_earnings')
+    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', todayStr);
+
+  const { data: weekTrips } = await sb.from('trips').select('driver_earnings')
+    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', weekAgo);
+
+  const { data: monthTrips } = await sb.from('trips').select('driver_earnings')
+    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', monthStart);
+
+  const sum = arr => (arr || []).reduce((s, t) => s + Number(t.driver_earnings || 0), 0);
+  const grossSum = arr => (arr || []).reduce((s, t) => s + Number(t.passenger_fare || 0), 0);
+  const feeSum = arr => (arr || []).reduce((s, t) => s + Number(t.via99_fee || 0), 0);
+
+  const totalEarnings = sum(allTrips);
+  const totalTrips = (allTrips || []).length;
+  const gross = grossSum(allTrips);
+  const commission = feeSum(allTrips);
+
+  document.getElementById('earn-total').textContent = `R${totalEarnings.toFixed(2)}`;
+  document.getElementById('earn-trips-label').textContent = `${totalTrips} trips`;
+  document.getElementById('earn-today').textContent = `R${sum(todayTrips).toFixed(2)}`;
+  document.getElementById('earn-week').textContent = `R${sum(weekTrips).toFixed(2)}`;
+  document.getElementById('earn-month').textContent = `R${sum(monthTrips).toFixed(2)}`;
+  document.getElementById('earn-gross').textContent = `R${gross.toFixed(2)}`;
+  document.getElementById('earn-commission').textContent = `-R${commission.toFixed(2)}`;
+  document.getElementById('earn-net').textContent = `R${totalEarnings.toFixed(2)}`;
+  document.getElementById('earn-acceptance').textContent = `${driverRecord.acceptance_rate || 100}%`;
+  document.getElementById('earn-avg').textContent = totalTrips > 0 ? `R${(totalEarnings / totalTrips).toFixed(2)}` : 'R0.00';
+}
+
+async function loadPayoutTab() {
+  if (!driverRecord) return;
+  document.getElementById('driver-payout-available').textContent = `R${Number(driverRecord.total_earnings || 0).toFixed(2)}`;
+}
+
+function loadProfileTab() {
+  if (!driverProfile || !driverRecord) return;
+  document.getElementById('dprofile-name').textContent = driverProfile.full_name || 'Driver';
+  document.getElementById('dprofile-email').textContent = currentUser?.email || '—';
+  document.getElementById('dprofile-phone').textContent = driverProfile.phone || '—';
+  document.getElementById('dprofile-car').textContent = `${driverRecord.vehicle_make || ''} ${driverRecord.vehicle_model || ''}`.trim();
+  document.getElementById('dprofile-colour').textContent = driverRecord.vehicle_colour || '—';
+  document.getElementById('dprofile-plate').textContent = driverRecord.vehicle_plate || '—';
+  document.getElementById('dprofile-trips').textContent = driverRecord.total_trips || 0;
+  document.getElementById('dprofile-rating').textContent = `${Number(driverRecord.rating || 5).toFixed(1)} ⭐`;
+  document.getElementById('dprofile-acceptance').textContent = `${driverRecord.acceptance_rate || 100}%`;
+}
+
+function selectDriverPayoutMethod(method) {
+  selectedDriverPayoutMethod = method;
+  document.querySelectorAll('.payout-method').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`dpm-${method}`).classList.add('selected');
+}
+
+async function requestDriverPayout() {
+  const amount = parseFloat(document.getElementById('driver-payout-amount').value);
+  const bank = document.getElementById('driver-payout-bank').value.trim();
+  const acc = document.getElementById('driver-payout-acc').value.trim();
+  const branch = document.getElementById('driver-payout-branch').value.trim();
+  if (!amount || amount <= 0) { toast('Enter a valid amount.'); return; }
+  if (!bank || !acc || !branch) { toast('Fill in all bank details.'); return; }
+  toast('Withdrawal request submitted. Processing within 2–3 business days.');
+  document.getElementById('driver-payout-amount').value = '';
 }
 
 // ═══════════════════════════════════════════
