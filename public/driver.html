@@ -344,6 +344,17 @@
   /* PROFILE */
   .profile-avatar{width:80px;height:80px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 12px;}
 
+  /* EARNINGS PERIOD BUTTONS */
+  .earn-period-btn {
+    flex:1; padding:10px 8px; border:1.5px solid var(--border);
+    border-radius:10px; background:var(--surface2);
+    color:var(--muted); font-family:var(--font); font-size:13px; font-weight:600;
+    cursor:pointer; transition:all 0.2s; touch-action:manipulation;
+  }
+  .earn-period-btn.active {
+    background:rgba(0,200,83,0.1); border-color:var(--green); color:var(--green);
+  }
+
   /* misc */
   .text-center { text-align: center; }
   .mt-8  { margin-top: 8px; }
@@ -695,29 +706,83 @@
 
 <!-- TAB: EARNINGS -->
 <div id="dtab-earnings" class="tab-screen">
-  <div style="padding:52px 20px 100px;">
-    <p style="font-size:22px;font-weight:700;margin-bottom:16px;">Earnings</p>
-    <div style="background:linear-gradient(135deg,#00C853 0%,#00962f 100%);border-radius:20px;padding:24px;margin-bottom:20px;text-align:center;">
-      <p style="font-size:13px;opacity:0.85;">Total earned</p>
-      <div style="font-size:42px;font-weight:700;margin:8px 0 4px;" id="earn-total">R0.00</div>
-      <p style="font-size:13px;opacity:0.85;" id="earn-trips-label">0 trips</p>
+  <div style="padding:52px 20px 100px; overflow-y:auto;">
+
+    <!-- PERIOD SELECTOR -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <button class="earn-period-btn active" id="epbtn-today" onclick="setEarnPeriod('today')">Today</button>
+      <button class="earn-period-btn" id="epbtn-week" onclick="setEarnPeriod('week')">This week</button>
+      <button class="earn-period-btn" id="epbtn-alltime" onclick="setEarnPeriod('alltime')">All time</button>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:20px;">
-      <div class="stat-box"><div class="stat-val color-green" id="earn-today">R0.00</div><div class="stat-label">Today</div></div>
-      <div class="stat-box"><div class="stat-val color-green" id="earn-week">R0.00</div><div class="stat-label">This week</div></div>
-      <div class="stat-box"><div class="stat-val color-green" id="earn-month">R0.00</div><div class="stat-label">This month</div></div>
+
+    <!-- HERO CARD -->
+    <div style="background:linear-gradient(135deg,#00C853 0%,#00962f 100%);border-radius:20px;padding:28px 24px;margin-bottom:16px;text-align:center;">
+      <p style="font-size:12px;font-weight:600;letter-spacing:1px;opacity:0.85;text-transform:uppercase;" id="earn-period-label">Today</p>
+      <div style="font-size:52px;font-weight:700;margin:8px 0 4px;line-height:1;" id="earn-hero">R0.00</div>
+      <p style="font-size:13px;opacity:0.85;" id="earn-hero-trips">0 trips</p>
     </div>
-    <p class="label">Earnings breakdown</p>
-    <div class="card">
-      <div class="fare-row"><span class="fare-label">Gross fares</span><span class="fare-val" id="earn-gross">R0.00</span></div>
-      <div class="fare-row"><span class="fare-label">Via99 commission (5%)</span><span class="fare-val color-red" id="earn-commission">-R0.00</span></div>
+
+    <!-- QUICK STATS ROW -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      <div class="stat-box">
+        <div class="stat-val color-green" id="earn-today-quick">R0.00</div>
+        <div class="stat-label">Today</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val color-green" id="earn-week-quick">R0.00</div>
+        <div class="stat-label">This week</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val color-green" id="earn-alltime-quick">R0.00</div>
+        <div class="stat-label">All time</div>
+      </div>
+    </div>
+
+    <!-- BREAKDOWN -->
+    <p class="label">Breakdown</p>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="fare-row">
+        <span class="fare-label">Gross fares collected</span>
+        <span class="fare-val" id="earn-gross">R0.00</span>
+      </div>
+      <div class="fare-row">
+        <span class="fare-label">Via99 commission (5%)</span>
+        <span class="fare-val color-red" id="earn-commission">-R0.00</span>
+      </div>
       <div class="divider"></div>
-      <div class="fare-row" style="margin-bottom:0;"><span style="font-size:15px;font-weight:600;">Net earnings</span><span style="font-size:18px;font-weight:700;color:var(--green);" id="earn-net">R0.00</span></div>
+      <div class="fare-row" style="margin-bottom:0;">
+        <span style="font-size:15px;font-weight:600;">Your net earnings</span>
+        <span style="font-size:20px;font-weight:700;color:var(--green);" id="earn-net">R0.00</span>
+      </div>
     </div>
-    <div class="card">
-      <div class="fare-row"><span class="fare-label">Acceptance rate</span><span class="fare-val" id="earn-acceptance">—%</span></div>
-      <div class="fare-row" style="margin-bottom:0;"><span class="fare-label">Average per trip</span><span class="fare-val color-green" id="earn-avg">R0.00</span></div>
+
+    <!-- PERFORMANCE -->
+    <p class="label">Performance</p>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="fare-row">
+        <span class="fare-label">Trips completed</span>
+        <span class="fare-val fw-600" id="earn-trips-count">0</span>
+      </div>
+      <div class="fare-row">
+        <span class="fare-label">Average per trip</span>
+        <span class="fare-val color-green" id="earn-avg">R0.00</span>
+      </div>
+      <div class="fare-row">
+        <span class="fare-label">Best trip</span>
+        <span class="fare-val color-green" id="earn-best">R0.00</span>
+      </div>
+      <div class="fare-row" style="margin-bottom:0;">
+        <span class="fare-label">Acceptance rate</span>
+        <span class="fare-val" id="earn-acceptance">—%</span>
+      </div>
     </div>
+
+    <!-- RECENT EARNINGS LIST -->
+    <p class="label">Recent earnings</p>
+    <div id="earn-recent-list">
+      <p class="color-muted fs-13 text-center mt-8">No trips yet.</p>
+    </div>
+
   </div>
 </div>
 
@@ -1473,44 +1538,97 @@ async function loadDriverTripsTab() {
   }).join('');
 }
 
+let earnPeriod = 'today';
+let earnData = { all: [], today: [], week: [] };
+
+function setEarnPeriod(period) {
+  earnPeriod = period;
+  document.querySelectorAll('.earn-period-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`epbtn-${period}`).classList.add('active');
+  renderEarningsPeriod();
+}
+
 async function loadEarningsTab() {
-  if (!currentUser || !driverRecord) return;
+  if (!currentUser) return;
+
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const { data: allTrips } = await sb.from('trips').select('driver_earnings, via99_fee, passenger_fare, created_at')
-    .eq('driver_id', currentUser.id).eq('status', 'completed');
+  const [{ data: allTrips }, { data: todayTrips }, { data: weekTrips }] = await Promise.all([
+    sb.from('trips').select('driver_earnings, via99_fee, passenger_fare, dest_address, created_at')
+      .eq('driver_id', currentUser.id).eq('status', 'completed').order('created_at', { ascending: false }),
+    sb.from('trips').select('driver_earnings, via99_fee, passenger_fare, dest_address, created_at')
+      .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', todayStr),
+    sb.from('trips').select('driver_earnings, via99_fee, passenger_fare, dest_address, created_at')
+      .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', weekAgo)
+  ]);
 
-  const { data: todayTrips } = await sb.from('trips').select('driver_earnings')
-    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', todayStr);
+  earnData.all   = allTrips   || [];
+  earnData.today = todayTrips || [];
+  earnData.week  = weekTrips  || [];
 
-  const { data: weekTrips } = await sb.from('trips').select('driver_earnings')
-    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', weekAgo);
+  // Quick stats row always shows all three
+  const sum = arr => arr.reduce((s, t) => s + Number(t.driver_earnings || 0), 0);
+  document.getElementById('earn-today-quick').textContent   = `R${sum(earnData.today).toFixed(2)}`;
+  document.getElementById('earn-week-quick').textContent    = `R${sum(earnData.week).toFixed(2)}`;
+  document.getElementById('earn-alltime-quick').textContent = `R${sum(earnData.all).toFixed(2)}`;
 
-  const { data: monthTrips } = await sb.from('trips').select('driver_earnings')
-    .eq('driver_id', currentUser.id).eq('status', 'completed').gte('created_at', monthStart);
+  if (driverRecord) {
+    document.getElementById('earn-acceptance').textContent = `${driverRecord.acceptance_rate || 100}%`;
+  }
 
-  const sum = arr => (arr || []).reduce((s, t) => s + Number(t.driver_earnings || 0), 0);
-  const grossSum = arr => (arr || []).reduce((s, t) => s + Number(t.passenger_fare || 0), 0);
-  const feeSum = arr => (arr || []).reduce((s, t) => s + Number(t.via99_fee || 0), 0);
+  renderEarningsPeriod();
+}
 
-  const totalEarnings = sum(allTrips);
-  const totalTrips = (allTrips || []).length;
-  const gross = grossSum(allTrips);
-  const commission = feeSum(allTrips);
+function renderEarningsPeriod() {
+  const trips = earnPeriod === 'today' ? earnData.today
+              : earnPeriod === 'week'  ? earnData.week
+              : earnData.all;
 
-  document.getElementById('earn-total').textContent = `R${totalEarnings.toFixed(2)}`;
-  document.getElementById('earn-trips-label').textContent = `${totalTrips} trips`;
-  document.getElementById('earn-today').textContent = `R${sum(todayTrips).toFixed(2)}`;
-  document.getElementById('earn-week').textContent = `R${sum(weekTrips).toFixed(2)}`;
-  document.getElementById('earn-month').textContent = `R${sum(monthTrips).toFixed(2)}`;
-  document.getElementById('earn-gross').textContent = `R${gross.toFixed(2)}`;
-  document.getElementById('earn-commission').textContent = `-R${commission.toFixed(2)}`;
-  document.getElementById('earn-net').textContent = `R${totalEarnings.toFixed(2)}`;
-  document.getElementById('earn-acceptance').textContent = `${driverRecord.acceptance_rate || 100}%`;
-  document.getElementById('earn-avg').textContent = totalTrips > 0 ? `R${(totalEarnings / totalTrips).toFixed(2)}` : 'R0.00';
+  const sum     = arr => arr.reduce((s, t) => s + Number(t.driver_earnings || 0), 0);
+  const grossSum = arr => arr.reduce((s, t) => s + Number(t.passenger_fare || 0), 0);
+  const feeSum  = arr => arr.reduce((s, t) => s + Number(t.via99_fee || 0), 0);
+
+  const net       = sum(trips);
+  const gross     = grossSum(trips);
+  const commission = feeSum(trips);
+  const count     = trips.length;
+  const avg       = count > 0 ? net / count : 0;
+  const best      = trips.length > 0 ? Math.max(...trips.map(t => Number(t.driver_earnings || 0))) : 0;
+
+  const labels = { today: 'Today', week: 'This week', alltime: 'All time' };
+  document.getElementById('earn-period-label').textContent = labels[earnPeriod];
+  document.getElementById('earn-hero').textContent         = `R${net.toFixed(2)}`;
+  document.getElementById('earn-hero-trips').textContent   = `${count} trip${count !== 1 ? 's' : ''}`;
+  document.getElementById('earn-gross').textContent        = `R${gross.toFixed(2)}`;
+  document.getElementById('earn-commission').textContent   = `-R${commission.toFixed(2)}`;
+  document.getElementById('earn-net').textContent          = `R${net.toFixed(2)}`;
+  document.getElementById('earn-trips-count').textContent  = count;
+  document.getElementById('earn-avg').textContent          = `R${avg.toFixed(2)}`;
+  document.getElementById('earn-best').textContent         = `R${best.toFixed(2)}`;
+
+  // Recent earnings list
+  const el = document.getElementById('earn-recent-list');
+  if (!trips.length) {
+    el.innerHTML = '<p class="color-muted fs-13 text-center mt-8">No trips in this period.</p>';
+    return;
+  }
+  el.innerHTML = trips.slice(0, 15).map(t => {
+    const earned = Number(t.driver_earnings || 0);
+    const date = new Date(t.created_at);
+    const timeStr = date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+    return `
+      <div class="wallet-tx">
+        <div class="wallet-tx-icon" style="background:rgba(0,200,83,0.12); color:var(--green);">🚗</div>
+        <div class="wallet-tx-info">
+          <div class="wallet-tx-desc">${(t.dest_address || 'Trip').split(',')[0]}</div>
+          <div class="wallet-tx-date">${dateStr} · ${timeStr}</div>
+        </div>
+        <div class="wallet-tx-amt color-green">+R${earned.toFixed(2)}</div>
+      </div>`;
+  }).join('');
 }
 
 async function loadPayoutTab() {

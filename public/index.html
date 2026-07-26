@@ -145,6 +145,12 @@ input::placeholder{color:var(--muted);}
 .pulse-dot{width:10px;height:10px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease-in-out infinite;display:inline-block;}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.4);opacity:0.6;}}
 
+/* NOTIFICATION TOGGLE */
+.notif-toggle{width:46px;height:26px;border-radius:13px;background:var(--muted2);position:relative;transition:background 0.2s;flex-shrink:0;cursor:pointer;}
+.notif-toggle.on{background:var(--green);}
+.notif-thumb{position:absolute;width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:transform 0.2s;}
+.notif-toggle.on .notif-thumb{transform:translateX(20px);}
+
 /* misc */
 .text-center{text-align:center;}
 .mt-8{margin-top:8px;}.mt-12{margin-top:12px;}.mt-16{margin-top:16px;}
@@ -192,7 +198,7 @@ input::placeholder{color:var(--muted);}
     <span class="nav-icon">🚗</span>Trips
   </div>
   <div class="nav-item" id="nav-wallet" onclick="switchTab('wallet')">
-    <span class="nav-icon">👛</span>Wallet
+    <span class="nav-icon">💳</span>Wallet
   </div>
   <div class="nav-item" id="nav-profile" onclick="switchTab('profile')">
     <span class="nav-icon">👤</span>Profile
@@ -515,10 +521,10 @@ input::placeholder{color:var(--muted);}
       <div class="card" style="cursor:pointer;" onclick="switchTab('trips')">
         <div class="row"><span class="fw-600">🚗 Trip History</span><span class="color-muted">→</span></div>
       </div>
-      <div class="card" style="cursor:pointer;">
+      <div class="card" style="cursor:pointer;" onclick="switchTab('notifications')">
         <div class="row"><span class="fw-600">🔔 Notifications</span><span class="color-muted">→</span></div>
       </div>
-      <div class="card" style="cursor:pointer;">
+      <div class="card" style="cursor:pointer;" onclick="switchTab('privacy')">
         <div class="row"><span class="fw-600">🔒 Privacy & Security</span><span class="color-muted">→</span></div>
       </div>
       <div class="card" style="cursor:pointer;">
@@ -624,36 +630,38 @@ async function checkAuth(){
 
 // TAB NAVIGATION
 function switchTab(tab){
-  if(inRideFlow)return;
   activeTab=tab;
+  inRideFlow=false;
   document.querySelectorAll('.tab-screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('bottom-nav').style.display='flex';
 
   if(tab==='home'){
     document.getElementById('screen-home').classList.add('active');
     document.getElementById('nav-home').classList.add('active');
-    document.getElementById('bottom-nav').style.display='flex';
-    map.flyTo({center:[userLng,userLat],zoom:14});
+    if(map)map.flyTo({center:[userLng,userLat],zoom:14});
   } else if(tab==='trips'){
     document.getElementById('tab-trips').classList.add('active');
     document.getElementById('nav-trips').classList.add('active');
-    document.getElementById('bottom-nav').style.display='flex';
     loadTripsTab();
   } else if(tab==='wallet'){
     document.getElementById('tab-wallet').classList.add('active');
     document.getElementById('nav-wallet').classList.add('active');
-    document.getElementById('bottom-nav').style.display='flex';
     loadWalletTab();
   } else if(tab==='payout'){
     document.getElementById('tab-payout').classList.add('active');
     document.getElementById('nav-wallet').classList.add('active');
-    document.getElementById('bottom-nav').style.display='flex';
     if(currentProfile)document.getElementById('payout-available').textContent=`R${Number(currentProfile.wallet_balance).toFixed(2)}`;
   } else if(tab==='profile'){
     document.getElementById('tab-profile').classList.add('active');
     document.getElementById('nav-profile').classList.add('active');
-    document.getElementById('bottom-nav').style.display='flex';
+  } else if(tab==='notifications'){
+    document.getElementById('tab-notifications').classList.add('active');
+    document.getElementById('nav-profile').classList.add('active');
+  } else if(tab==='privacy'){
+    document.getElementById('tab-privacy').classList.add('active');
+    document.getElementById('nav-profile').classList.add('active');
   }
 }
 
@@ -1081,5 +1089,121 @@ async function signOut(){
 document.getElementById('bottom-nav').style.display='flex';
 init();
 </script>
+<!-- TAB: NOTIFICATIONS -->
+<div id="tab-notifications" class="tab-screen">
+  <div style="padding:52px 20px 100px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      <div class="topbar-action" onclick="switchTab('profile')">←</div>
+      <p style="font-size:20px;font-weight:700;">Notifications</p>
+    </div>
+
+    <p class="label">Push notifications</p>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">Trip updates</div><div class="fs-12 color-muted mt-8">Driver matched, arriving, trip started</div></div>
+        <div class="notif-toggle on" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">Promotions & offers</div><div class="fs-12 color-muted mt-8">Discounts and special deals</div></div>
+        <div class="notif-toggle on" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">Wallet activity</div><div class="fs-12 color-muted mt-8">Top-ups and payments</div></div>
+        <div class="notif-toggle on" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">News & updates</div><div class="fs-12 color-muted mt-8">App updates and announcements</div></div>
+        <div class="notif-toggle" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+
+    <p class="label mt-16">SMS notifications</p>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">Trip receipts</div><div class="fs-12 color-muted mt-8">SMS after each completed trip</div></div>
+        <div class="notif-toggle" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row" style="margin-bottom:12px;">
+        <div><div class="fw-600">OTP & security</div><div class="fs-12 color-muted mt-8">Verification codes (always on)</div></div>
+        <div class="notif-toggle on" style="opacity:0.5;pointer-events:none;"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: PRIVACY -->
+<div id="tab-privacy" class="tab-screen">
+  <div style="padding:52px 20px 100px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      <div class="topbar-action" onclick="switchTab('profile')">←</div>
+      <p style="font-size:20px;font-weight:700;">Privacy & Security</p>
+    </div>
+
+    <p class="label">Security</p>
+    <div class="card mb-12" style="cursor:pointer;" onclick="toast('Feature coming soon')">
+      <div class="row"><span class="fw-600">🔑 Change password</span><span class="color-muted">→</span></div>
+    </div>
+    <div class="card mb-12" style="cursor:pointer;" onclick="toast('Feature coming soon')">
+      <div class="row"><span class="fw-600">📱 Two-factor authentication</span><span class="color-muted">→</span></div>
+    </div>
+    <div class="card mb-12" style="cursor:pointer;" onclick="toast('Feature coming soon')">
+      <div class="row"><span class="fw-600">🔒 Active sessions</span><span class="color-muted">→</span></div>
+    </div>
+
+    <p class="label mt-16">Privacy</p>
+    <div class="card mb-12">
+      <div class="row">
+        <div><div class="fw-600">Share location during trips</div><div class="fs-12 color-muted mt-8">Required for ride-hailing</div></div>
+        <div class="notif-toggle on" style="opacity:0.5;pointer-events:none;"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row">
+        <div><div class="fw-600">Save trip history</div><div class="fs-12 color-muted mt-8">Used for quick rebooking</div></div>
+        <div class="notif-toggle on" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+    <div class="card mb-12">
+      <div class="row">
+        <div><div class="fw-600">Personalised suggestions</div><div class="fs-12 color-muted mt-8">Based on your trip history</div></div>
+        <div class="notif-toggle on" onclick="toggleNotif(this)"><div class="notif-thumb"></div></div>
+      </div>
+    </div>
+
+    <p class="label mt-16">Data</p>
+    <div class="card mb-12" style="cursor:pointer;" onclick="toast('Request sent to privacy@via99.co.za')">
+      <div class="row"><span class="fw-600">📥 Download my data</span><span class="color-muted">→</span></div>
+    </div>
+    <div class="card mb-12" style="cursor:pointer;" onclick="confirmDeleteAccount()">
+      <div class="row"><span class="fw-600 color-red">🗑️ Delete account</span><span class="color-muted">→</span></div>
+    </div>
+
+    <p class="fs-12 color-muted text-center mt-16">Via99 Privacy Policy · Terms of Service</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// NOTIFICATION TOGGLES
+// ═══════════════════════════════════════════
+function toggleNotif(el){
+  el.classList.toggle('on');
+}
+
+function confirmDeleteAccount(){
+  if(confirm('Are you sure you want to delete your account? This cannot be undone.')){
+    toast('Account deletion request submitted.');
+  }
+}
+</script>
+
 </body>
 </html>
