@@ -391,11 +391,11 @@
   <div class="sheet" style="flex:1; border-radius:0; overflow:hidden; display:flex; flex-direction:column;">
     <div class="input-wrap">
       <span class="input-icon">📍</span>
-      <input type="text" id="pickup-input" placeholder="Pickup location" />
+      <input type="text" id="pickup-input" placeholder="Pickup location" oninput="searchPlaces(this.value, 'pickup')" />
     </div>
     <div class="input-wrap">
       <span class="input-icon">🔍</span>
-      <input type="text" id="dest-input" placeholder="Where to?" oninput="searchPlaces(this.value)" />
+      <input type="text" id="dest-input" placeholder="Where to?" oninput="searchPlaces(this.value, 'dest')" />
     </div>
     <div id="search-results" class="sheet-scroll" style="flex:1;"></div>
   </div>
@@ -825,35 +825,61 @@ function toast(msg, duration = 2500) {
 // GEOCODING
 // ═══════════════════════════════════════════
 let searchTimeout = null;
-function searchPlaces(query) {
+let searchMode = 'dest'; // 'dest' or 'pickup'
+function searchPlaces(query, mode) {
+  if (mode) searchMode = mode;
   clearTimeout(searchTimeout);
-  if (!query || query.length < 3) {
-    document.getElementById('search-results').innerHTML = '';
+  const resultsEl = document.getElementById('search-results');
+  if (!query || query.length < 2) {
+    resultsEl.innerHTML = '';
     return;
   }
+  resultsEl.innerHTML = '<p class="color-muted fs-13 text-center mt-8">Searching…</p>';
   searchTimeout = setTimeout(async () => {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=ZA&proximity=${userLng},${userLat}&limit=5`;
-    const res = await fetch(url);
-    const data = await res.json();
-    renderSearchResults(data.features || []);
-  }, 350);
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=ZA&proximity=${userLng},${userLat}&limit=6&types=place,locality,neighborhood,address,poi`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Geocoding failed');
+      const data = await res.json();
+      renderSearchResults(data.features || [], searchMode);
+    } catch (e) {
+      resultsEl.innerHTML = '<p class="color-muted fs-13 text-center mt-8">Search failed. Check connection.</p>';
+    }
+  }, 300);
 }
 
-function renderSearchResults(features) {
+function renderSearchResults(features, mode) {
   const el = document.getElementById('search-results');
   if (!features.length) {
     el.innerHTML = '<p class="color-muted fs-13 text-center mt-8">No results found.</p>';
     return;
   }
-  el.innerHTML = features.map(f => `
-    <div class="search-result" onclick="selectDest(${f.center[1]}, ${f.center[0]}, '${f.place_name.replace(/'/g,"\\'")}')">
-      <div class="search-result-icon">📍</div>
-      <div>
-        <div class="search-result-name">${f.text}</div>
-        <div class="search-result-addr">${f.place_name}</div>
-      </div>
-    </div>
-  `).join('');
+  el.innerHTML = features.map(f => {
+    const safeName = f.place_name.replace(/'/g, "\\'");
+    const fn = mode === 'pickup'
+      ? `selectPickup(${f.center[1]}, ${f.center[0]}, '${safeName}')`
+      : `selectDest(${f.center[1]}, ${f.center[0]}, '${safeName}')`;
+    return `
+      <div class="search-result" onclick="${fn}">
+        <div class="search-result-icon">${mode === 'pickup' ? '📍' : '🏁'}</div>
+        <div>
+          <div class="search-result-name">${f.text}</div>
+          <div class="search-result-addr">${f.place_name}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function selectPickup(lat, lng, address) {
+  userLat = lat;
+  userLng = lng;
+  pickupAddress = address;
+  document.getElementById('pickup-input').value = address;
+  document.getElementById('search-results').innerHTML = '';
+  placeUserMarker();
+  map.flyTo({ center: [lng, lat], zoom: 14 });
+  // focus dest input
+  document.getElementById('dest-input').focus();
 }
 
 function reverseGeocode(lat, lng, cb) {
