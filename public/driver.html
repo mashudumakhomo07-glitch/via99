@@ -919,12 +919,12 @@ let todayTrips = 0;
 async function init() {
   injectLogos();
   initMap();
+  registerPush();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     currentUser = session.user;
     await loadDriverData();
-    document.getElementById('driver-bottom-nav').style.display = 'flex';
-    showScreen('screen-dashboard');
+    showScreenByApproval();
   }
   getDriverLocation();
 }
@@ -1000,8 +1000,7 @@ async function signIn() {
   if (error) { toast(error.message); return; }
   currentUser = data.user;
   await loadDriverData();
-  document.getElementById('driver-bottom-nav').style.display = 'flex';
-  showScreen('screen-dashboard');
+  showScreenByApproval();
 }
 
 async function loadDriverData() {
@@ -1024,6 +1023,23 @@ async function loadDriverData() {
 
   await loadTodayStats();
   await loadTripHistory();
+}
+
+
+// ═══════════════════════════════════════════
+// APPROVAL GATE
+// ═══════════════════════════════════════════
+function showScreenByApproval() {
+  if (!driverRecord) { toast('Driver record not found.'); return; }
+  const status = driverRecord.approval_status || 'pending';
+  if (status === 'approved') {
+    document.getElementById('driver-bottom-nav').style.display = 'flex';
+    showScreen('screen-dashboard');
+  } else if (status === 'rejected') {
+    showScreen('screen-rejected');
+  } else {
+    showScreen('screen-pending');
+  }
 }
 
 async function loadTodayStats() {
@@ -1188,6 +1204,7 @@ async function pollForTrips() {
   // Got a trip request
   stopPolling();
   currentTrip = data;
+  notifyDriver("Via99 — New trip request!", `Pickup: ${(data.pickup_address||"").split(",")[0]} → ${(data.dest_address||"").split(",")[0]}`);
   showRequestScreen(data);
 }
 
@@ -1720,10 +1737,63 @@ function stopRouteRefresh() {
   if (routeRefreshInterval) { clearInterval(routeRefreshInterval); routeRefreshInterval = null; }
 }
 
+
+// ═══════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════
+async function registerPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    console.log('Via99: Push notifications enabled');
+  } catch(e) {
+    console.log('Via99: Push registration failed', e);
+  }
+}
+
+function notifyDriver(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, {
+      body,
+      icon: '/favicon.svg',
+      vibrate: [200, 100, 200],
+      tag: 'via99-trip'
+    });
+  }
+}
+
 // ═══════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════
 init();
 </script>
+<!-- PENDING SCREEN -->
+<div id="screen-pending" class="screen-full">
+  <div style="padding:60px 20px 40px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <img src="" class="logo-img" style="height:32px;margin-bottom:40px;" alt="Via99"/>
+    <div style="font-size:56px;margin-bottom:20px;">⏳</div>
+    <p style="font-size:22px;font-weight:700;margin-bottom:12px;">Application under review</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:32px;max-width:300px;">Your driver application is being reviewed by the Via99 team. You will receive an email within 2–3 business days.</p>
+    <div style="background:rgba(232,38,26,0.1);border:1px solid rgba(232,38,26,0.3);color:var(--red);padding:10px 24px;border-radius:100px;font-size:14px;font-weight:600;margin-bottom:32px;">⏳ Pending approval</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:24px;">Make sure your vehicle is roadworthy and your documents are up to date while you wait.</p>
+    <button class="btn btn-ghost" style="max-width:280px;" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
+<!-- REJECTED SCREEN -->
+<div id="screen-rejected" class="screen-full">
+  <div style="padding:60px 20px 40px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <img src="" class="logo-img" style="height:32px;margin-bottom:40px;" alt="Via99"/>
+    <div style="font-size:56px;margin-bottom:20px;">❌</div>
+    <p style="font-size:22px;font-weight:700;margin-bottom:12px;">Application not approved</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:32px;max-width:300px;">Unfortunately your application was not approved at this time. Please contact support at <strong>support@via99.co.za</strong> for more information.</p>
+    <div style="background:rgba(232,38,26,0.1);border:1px solid rgba(232,38,26,0.3);color:var(--red);padding:10px 24px;border-radius:100px;font-size:14px;font-weight:600;margin-bottom:32px;">❌ Not approved</div>
+    <button class="btn btn-ghost" style="max-width:280px;" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
 </body>
 </html>
