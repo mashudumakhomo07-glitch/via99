@@ -268,14 +268,17 @@ input::placeholder{color:var(--muted);}
       <div class="ride-card selected" data-type="economy" onclick="selectRide('economy')">
         <div class="ride-icon">🚗</div><div class="ride-name">Economy</div>
         <div class="ride-price" id="price-economy">R—</div>
+        <div id="surge-economy" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
       </div>
       <div class="ride-card" data-type="business" onclick="selectRide('business')">
         <div class="ride-icon">🚙</div><div class="ride-name">Biz</div>
         <div class="ride-price" id="price-business">R—</div>
+        <div id="surge-business" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
       </div>
       <div class="ride-card" data-type="msheto" onclick="selectRide('msheto')">
         <div class="ride-icon">🚐</div><div class="ride-name">Msheto</div>
         <div class="ride-price" id="price-msheto">R—</div>
+        <div id="surge-msheto" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
       </div>
     </div>
     <button class="btn btn-primary" onclick="showRideScreen('screen-confirm')">Continue</button>
@@ -330,6 +333,14 @@ input::placeholder{color:var(--muted);}
       <p class="fs-12 color-muted mt-8" style="text-align:center;">🔒 Secured by PayFast · 256-bit SSL</p>
     </div>
     <p class="fs-12 color-muted mb-12" id="wallet-balance-label"></p>
+    <div class="input-wrap mb-12" style="display:flex;gap:8px;align-items:center;">
+      <div style="position:relative;flex:1;">
+        <span class="input-icon">🎟️</span>
+        <input type="text" id="promo-input" placeholder="Promo code (optional)" style="text-transform:uppercase;"/>
+      </div>
+      <button class="btn btn-ghost" style="width:auto;padding:13px 16px;flex-shrink:0;" onclick="applyPromo()">Apply</button>
+    </div>
+    <div id="promo-result" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:10px;font-size:13px;"></div>
     <button class="btn btn-primary" id="book-btn" onclick="bookRide()">Book Ride</button>
   </div>
 </div>
@@ -369,8 +380,9 @@ input::placeholder{color:var(--muted);}
       </div>
       <div class="eta-badge" id="matched-eta">— min</div>
     </div>
-    <div style="display:flex;gap:10px;">
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
       <button class="btn btn-ghost" style="flex:1;" onclick="callDriver()">📞 Call</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="openChat()">💬 Chat</button>
       <button class="btn btn-danger" style="flex:1;" onclick="cancelTrip()">Cancel</button>
     </div>
   </div>
@@ -638,6 +650,7 @@ async function init(){
   injectLogos();
   initMap();
   await loadFareConfig();
+  await loadSurgeConfig();
   await checkAuth();
   getUserLocation();
 }
@@ -829,9 +842,12 @@ function addRouteLayer(geometry){
 function calcFare(type){
   const cfg=fareConfig[type];if(!cfg)return{passengerFare:0,driverEarnings:0,via99Fee:0};
   const dist=window._routeDistKm||5,dur=window._routeDurMin||10;
-  const raw=cfg.base_fare+(cfg.per_km*dist)+(cfg.per_min*dur);
+  const surge=getSurgeMultiplier(type);
+  const raw=(cfg.base_fare+(cfg.per_km*dist)+(cfg.per_min*dur))*surge;
   const final=Math.max(raw,cfg.minimum_fare);
-  return{passengerFare:final*(1-cfg.rider_discount/100),driverEarnings:final*(cfg.driver_share/100),via99Fee:final*(cfg.via99_share/100)};
+  const promoDiscount=calcPromoDiscount(final);
+  const passengerFare=Math.max(0,(final*(1-cfg.rider_discount/100))-promoDiscount);
+  return{passengerFare,driverEarnings:final*(cfg.driver_share/100),via99Fee:final*(cfg.via99_share/100),surgeMultiplier:surge,promoDiscount};
 }
 function calculateFares(){
   ['economy','business','msheto'].forEach(t=>{
@@ -897,7 +913,10 @@ async function bookRide(){
     dest_address:destAddress,dest_lat:destLat,dest_lng:destLng,
     passenger_fare:parseFloat(passengerFare.toFixed(2)),driver_earnings:parseFloat(driverEarnings.toFixed(2)),
     via99_fee:parseFloat(via99Fee.toFixed(2)),estimated_distance_km:parseFloat(dist.toFixed(2)),
-    estimated_duration_min:parseFloat(dur.toFixed(1)),payment_method:selectedPayment,payment_status:'pending'};
+    estimated_duration_min:parseFloat(dur.toFixed(1)),payment_method:selectedPayment,payment_status:'pending',
+    promo_code:appliedPromo?appliedPromo.code:null,
+    promo_discount:appliedPromo?parseFloat((calcFare(selectedRide).promoDiscount||0).toFixed(2)):0,
+    surge_multiplier:getSurgeMultiplier(selectedRide)};
   const{data,error}=await sb.from('trips').insert(tripData).select().single();
   btn.disabled=false;btn.textContent='Book Ride';
   if(error){toast('Booking failed. Try again.');return;}
@@ -1285,6 +1304,231 @@ async function signOut(){
   toast('Signed out.');switchTab('home');
 }
 
+// ═══════════════════════════════════════════
+// PROMO CODES
+// ═══════════════════════════════════════════
+let appliedPromo = null;
+
+async function applyPromo() {
+  const code = document.getElementById('promo-input').value.trim().toUpperCase();
+  const result = document.getElementById('promo-result');
+  if (!code) { toast('Enter a promo code.'); return; }
+
+  const { data, error } = await sb.from('promo_codes')
+    .select('*').eq('code', code).eq('active', true).single();
+
+  if (error || !data) {
+    result.style.display = 'block';
+    result.style.background = 'rgba(232,38,26,0.1)';
+    result.style.border = '1px solid rgba(232,38,26,0.3)';
+    result.style.color = 'var(--red)';
+    result.textContent = '❌ Invalid or expired promo code.';
+    appliedPromo = null;
+    return;
+  }
+
+  // Check expiry
+  if (data.valid_until && new Date(data.valid_until) < new Date()) {
+    result.style.display = 'block';
+    result.style.background = 'rgba(232,38,26,0.1)';
+    result.style.border = '1px solid rgba(232,38,26,0.3)';
+    result.style.color = 'var(--red)';
+    result.textContent = '❌ This promo code has expired.';
+    appliedPromo = null;
+    return;
+  }
+
+  // Check max uses
+  if (data.max_uses && data.uses_count >= data.max_uses) {
+    result.style.display = 'block';
+    result.style.background = 'rgba(232,38,26,0.1)';
+    result.style.border = '1px solid rgba(232,38,26,0.3)';
+    result.style.color = 'var(--red)';
+    result.textContent = '❌ This promo code has reached its usage limit.';
+    appliedPromo = null;
+    return;
+  }
+
+  appliedPromo = data;
+  const discountText = data.discount_type === 'percentage'
+    ? `${data.discount_value}% off`
+    : `R${data.discount_value} off`;
+
+  result.style.display = 'block';
+  result.style.background = 'rgba(0,200,83,0.1)';
+  result.style.border = '1px solid rgba(0,200,83,0.3)';
+  result.style.color = 'var(--green)';
+  result.textContent = `✅ ${discountText} applied!`;
+  updateConfirmScreen();
+}
+
+function calcPromoDiscount(fare) {
+  if (!appliedPromo) return 0;
+  if (appliedPromo.discount_type === 'percentage') {
+    return fare * (appliedPromo.discount_value / 100);
+  }
+  return Math.min(appliedPromo.discount_value, fare);
+}
+
+// ═══════════════════════════════════════════
+// SURGE PRICING
+// ═══════════════════════════════════════════
+let surgeConfig = {};
+
+async function loadSurgeConfig() {
+  const { data } = await sb.from('surge_config').select('*').eq('active', true);
+  surgeConfig = {};
+  if (data) {
+    data.forEach(s => {
+      if (s.ride_type === 'all') {
+        ['economy','business','msheto'].forEach(t => surgeConfig[t] = s.multiplier);
+      } else {
+        surgeConfig[s.ride_type] = s.multiplier;
+      }
+    });
+  }
+  // Show surge badges
+  ['economy','business','msheto'].forEach(type => {
+    const badge = document.getElementById(`surge-${type}`);
+    if (badge) badge.style.display = surgeConfig[type] > 1 ? 'block' : 'none';
+  });
+}
+
+function getSurgeMultiplier(type) {
+  return surgeConfig[type] || 1.0;
+}
+
+// ═══════════════════════════════════════════
+// PROXIMITY-BASED DRIVER MATCHING
+// Finds nearest online approved driver
+// ═══════════════════════════════════════════
+async function findNearestDriver() {
+  const { data: drivers } = await sb
+    .from('drivers')
+    .select('id, lat, lng, profiles(full_name)')
+    .eq('is_online', true)
+    .eq('is_suspended', false);
+
+  if (!drivers || !drivers.length) return null;
+
+  // Get latest locations
+  const { data: locations } = await sb
+    .from('driver_locations')
+    .select('driver_id, lat, lng');
+
+  if (!locations || !locations.length) return null;
+
+  // Calculate distance to each driver
+  let nearest = null;
+  let minDist = Infinity;
+
+  locations.forEach(loc => {
+    const driver = drivers.find(d => d.id === loc.driver_id);
+    if (!driver) return;
+    const dist = getDistanceKm(userLat, userLng, loc.lat, loc.lng);
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = { ...driver, dist, driverLat: loc.lat, driverLng: loc.lng };
+    }
+  });
+
+  return nearest;
+}
+
+function getDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ═══════════════════════════════════════════
+// IN-APP CHAT
+// ═══════════════════════════════════════════
+let chatSub = null;
+
+function openChat() {
+  if (!currentTrip) return;
+  document.getElementById('chat-modal').style.display = 'flex';
+  loadChatMessages();
+  subscribeToChatMessages();
+}
+
+function closeChat() {
+  document.getElementById('chat-modal').style.display = 'none';
+  if (chatSub) { sb.removeChannel(chatSub); chatSub = null; }
+}
+
+async function loadChatMessages() {
+  if (!currentTrip) return;
+  const { data } = await sb.from('trip_messages')
+    .select('*').eq('trip_id', currentTrip.id)
+    .order('created_at', { ascending: true });
+  renderChatMessages(data || []);
+}
+
+function renderChatMessages(messages) {
+  const el = document.getElementById('chat-messages');
+  if (!messages.length) {
+    el.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0;">No messages yet. Say hi!</p>';
+    return;
+  }
+  el.innerHTML = messages.map(m => {
+    const isMe = m.sender_role === 'passenger';
+    return `<div style="display:flex;justify-content:${isMe ? 'flex-end' : 'flex-start'};margin-bottom:8px;">
+      <div style="max-width:75%;padding:10px 14px;border-radius:${isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px'};
+        background:${isMe ? 'var(--red)' : 'var(--surface2)'};color:${isMe ? '#fff' : 'var(--text)'};font-size:14px;">
+        ${m.message}
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function subscribeToChatMessages() {
+  if (!currentTrip) return;
+  chatSub = sb.channel('chat-' + currentTrip.id)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'trip_messages',
+      filter: `trip_id=eq.${currentTrip.id}`
+    }, payload => {
+      loadChatMessages();
+    })
+    .subscribe();
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message || !currentTrip) return;
+  input.value = '';
+  await sb.from('trip_messages').insert({
+    trip_id:     currentTrip.id,
+    sender_id:   currentUser?.id || null,
+    sender_role: 'passenger',
+    message
+  });
+}
+
+function sendQuickMessage(msg) {
+  document.getElementById('chat-input').value = msg;
+  sendChatMessage();
+}
+
+// ═══════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════
+async function loadNotifications() {
+  if (!currentUser) return;
+  const { data } = await sb.from('notifications')
+    .select('*').eq('user_id', currentUser.id)
+    .eq('read', false).order('created_at', { ascending: false });
+  return data || [];
+}
+
 // BOOT
 document.getElementById('bottom-nav').style.display='flex';
 init();
@@ -1387,6 +1631,26 @@ init();
     </div>
 
     <p class="fs-12 color-muted text-center mt-16">Via99 Privacy Policy · Terms of Service</p>
+  </div>
+</div>
+
+<!-- CHAT MODAL -->
+<div id="chat-modal" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.7);align-items:flex-end;">
+  <div style="width:100%;background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border);padding:20px;max-height:70vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <p style="font-size:16px;font-weight:600;">💬 Chat with driver</p>
+      <div class="topbar-action" onclick="closeChat()">×</div>
+    </div>
+    <div id="chat-messages" style="flex:1;overflow-y:auto;margin-bottom:12px;max-height:40vh;"></div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="chat-input" placeholder="Type a message..." style="flex:1;" onkeypress="if(event.key==='Enter')sendChatMessage()"/>
+      <button class="btn btn-primary" style="width:auto;padding:13px 16px;" onclick="sendChatMessage()">Send</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" style="width:auto;padding:8px 12px;font-size:12px;" onclick="sendQuickMessage('On my way!')">On my way!</button>
+      <button class="btn btn-ghost" style="width:auto;padding:8px 12px;font-size:12px;" onclick="sendQuickMessage('I am outside')">I am outside</button>
+      <button class="btn btn-ghost" style="width:auto;padding:8px 12px;font-size:12px;" onclick="sendQuickMessage('5 minutes away')">5 min away</button>
+    </div>
   </div>
 </div>
 

@@ -168,6 +168,15 @@ input::placeholder{color:var(--muted);}
       <div class="nav-link" onclick="showPage('revenue')" id="nl-revenue">
         <span class="icon">💰</span> Revenue
       </div>
+      <div class="nav-link" onclick="showPage('surge')" id="nl-surge">
+        <span class="icon">🔥</span> Surge Pricing
+      </div>
+      <div class="nav-link" onclick="showPage('promos')" id="nl-promos">
+        <span class="icon">🎟️</span> Promo Codes
+      </div>
+      <div class="nav-link" onclick="showPage('balances')" id="nl-balances">
+        <span class="icon">💳</span> Driver Balances
+      </div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-ghost" style="width:100%;font-size:13px;" onclick="adminLogout()">Sign out</button>
@@ -324,6 +333,86 @@ input::placeholder{color:var(--muted);}
       </div>
     </div>
 
+    <!-- SURGE PRICING PAGE -->
+    <div id="page-surge" class="tab-content">
+      <div class="page-header">
+        <div><div class="page-title">🔥 Surge Pricing</div><div class="page-sub">Activate surge pricing during peak demand</div></div>
+        <button class="btn btn-ghost" onclick="loadSurgePage()">↻ Refresh</button>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ride type</th><th>Multiplier</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
+            <tbody id="surge-table"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-card" style="padding:20px;">
+        <p style="font-size:15px;font-weight:600;margin-bottom:16px;">Activate surge</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          <select id="surge-type" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);">
+            <option value="all">All ride types</option>
+            <option value="economy">Economy</option>
+            <option value="business">Business</option>
+            <option value="msheto">Msheto</option>
+          </select>
+          <select id="surge-multiplier" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);">
+            <option value="1.2">1.2x — 20% surge</option>
+            <option value="1.5">1.5x — 50% surge</option>
+            <option value="1.75">1.75x — 75% surge</option>
+            <option value="2.0">2.0x — Double fare</option>
+          </select>
+          <input type="text" id="surge-reason" placeholder="Reason (e.g. Peak hours)" style="flex:2;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);"/>
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 24px;" onclick="activateSurge()">🔥 Activate surge</button>
+        <button class="btn btn-ghost" style="width:auto;padding:10px 24px;margin-left:10px;" onclick="deactivateAllSurge()">Deactivate all</button>
+      </div>
+    </div>
+
+    <!-- PROMO CODES PAGE -->
+    <div id="page-promos" class="tab-content">
+      <div class="page-header">
+        <div><div class="page-title">🎟️ Promo Codes</div><div class="page-sub">Manage passenger discounts</div></div>
+      </div>
+      <div class="table-card" style="padding:20px;margin-bottom:16px;">
+        <p style="font-size:15px;font-weight:600;margin-bottom:16px;">Create promo code</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <input type="text" id="promo-code-input" placeholder="Code (e.g. LAUNCH20)" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);text-transform:uppercase;"/>
+          <select id="promo-type" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);">
+            <option value="percentage">Percentage discount</option>
+            <option value="fixed">Fixed amount (R)</option>
+          </select>
+          <input type="number" id="promo-value" placeholder="Discount value (e.g. 20)" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);"/>
+          <input type="number" id="promo-max-uses" placeholder="Max uses (blank = unlimited)" style="padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);"/>
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 24px;" onclick="createPromoCode()">Create promo code</button>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Code</th><th>Type</th><th>Discount</th><th>Uses</th><th>Max uses</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="promos-table"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRIVER BALANCES PAGE -->
+    <div id="page-balances" class="tab-content">
+      <div class="page-header">
+        <div><div class="page-title">💳 Driver Balances</div><div class="page-sub">Via99 fee collection and debt management</div></div>
+        <button class="btn btn-ghost" onclick="loadBalancesPage()">↻ Refresh</button>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Driver</th><th>Balance owed</th><th>Credit limit</th><th>Tier</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="balances-table"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- REVENUE PAGE -->
     <div id="page-revenue" class="tab-content">
       <div class="page-header">
@@ -436,6 +525,9 @@ function showPage(page) {
   if (page === 'passengers') loadPassengersPage();
   if (page === 'trips')      loadTripsPage();
   if (page === 'revenue')    loadRevenuePage();
+  if (page === 'surge')      loadSurgePage();
+  if (page === 'promos')     loadPromosPage();
+  if (page === 'balances')   loadBalancesPage();
 }
 
 // LOAD ALL DATA
@@ -656,6 +748,135 @@ async function loadRevenuePage() {
   }).join('');
 }
 
+// ═══ SURGE PRICING ═══
+async function loadSurgePage() {
+  const { data } = await sb.from('surge_config').select('*').order('ride_type');
+  const el = document.getElementById('surge-table');
+  if (!data || !data.length) { el.innerHTML = '<tr><td colspan="5" class="empty">No surge config.</td></tr>'; return; }
+  el.innerHTML = data.map(s => `
+    <tr>
+      <td class="fw-600" style="text-transform:capitalize;">${s.ride_type}</td>
+      <td>${s.multiplier}x</td>
+      <td><span class="badge ${s.active ? 'badge-red' : 'badge-muted'}">${s.active ? '🔥 Active' : 'Inactive'}</span></td>
+      <td>${s.reason || '—'}</td>
+      <td>${s.active ? `<button class="btn btn-ghost btn-sm" onclick="deactivateSurge('${s.id}')">Deactivate</button>` : '—'}</td>
+    </tr>`).join('');
+}
+
+async function activateSurge() {
+  const type       = document.getElementById('surge-type').value;
+  const multiplier = parseFloat(document.getElementById('surge-multiplier').value);
+  const reason     = document.getElementById('surge-reason').value.trim() || 'Peak hours';
+
+  if (type === 'all') {
+    await sb.from('surge_config').update({ active: true, multiplier, reason }).neq('id', '00000000-0000-0000-0000-000000000000');
+  } else {
+    await sb.from('surge_config').update({ active: true, multiplier, reason }).eq('ride_type', type);
+  }
+  toast(`🔥 Surge activated (${multiplier}x)`);
+  loadSurgePage();
+}
+
+async function deactivateSurge(id) {
+  await sb.from('surge_config').update({ active: false, multiplier: 1.0 }).eq('id', id);
+  toast('Surge deactivated.');
+  loadSurgePage();
+}
+
+async function deactivateAllSurge() {
+  await sb.from('surge_config').update({ active: false, multiplier: 1.0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+  toast('All surge deactivated.');
+  loadSurgePage();
+}
+
+// ═══ PROMO CODES ═══
+async function loadPromosPage() {
+  const { data } = await sb.from('promo_codes').select('*').order('created_at', { ascending: false });
+  const el = document.getElementById('promos-table');
+  if (!data || !data.length) { el.innerHTML = '<tr><td colspan="7" class="empty">No promo codes yet.</td></tr>'; return; }
+  el.innerHTML = data.map(p => `
+    <tr>
+      <td class="fw-600">${p.code}</td>
+      <td>${p.discount_type}</td>
+      <td>${p.discount_type === 'percentage' ? p.discount_value + '%' : 'R' + p.discount_value}</td>
+      <td>${p.uses_count}</td>
+      <td>${p.max_uses || '∞'}</td>
+      <td><span class="badge ${p.active ? 'badge-green' : 'badge-muted'}">${p.active ? 'Active' : 'Inactive'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="togglePromo('${p.id}', ${!p.active})">${p.active ? 'Disable' : 'Enable'}</button>
+        <button class="btn btn-reject btn-sm" style="margin-left:4px;" onclick="deletePromo('${p.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function createPromoCode() {
+  const code  = document.getElementById('promo-code-input').value.trim().toUpperCase();
+  const type  = document.getElementById('promo-type').value;
+  const value = parseFloat(document.getElementById('promo-value').value);
+  const maxUses = document.getElementById('promo-max-uses').value;
+  if (!code || !value) { toast('Fill in code and discount value.'); return; }
+  const { error } = await sb.from('promo_codes').insert({
+    code, discount_type: type, discount_value: value,
+    max_uses: maxUses ? parseInt(maxUses) : null, active: true
+  });
+  if (error) { toast('Error: ' + (error.message.includes('unique') ? 'Code already exists.' : error.message)); return; }
+  toast(`Promo code ${code} created ✓`);
+  document.getElementById('promo-code-input').value = '';
+  document.getElementById('promo-value').value = '';
+  loadPromosPage();
+}
+
+async function togglePromo(id, active) {
+  await sb.from('promo_codes').update({ active }).eq('id', id);
+  toast(active ? 'Promo enabled.' : 'Promo disabled.');
+  loadPromosPage();
+}
+
+async function deletePromo(id) {
+  if (!confirm('Delete this promo code?')) return;
+  await sb.from('promo_codes').delete().eq('id', id);
+  toast('Promo code deleted.');
+  loadPromosPage();
+}
+
+// ═══ DRIVER BALANCES ═══
+async function loadBalancesPage() {
+  const { data } = await sb.from('drivers').select('*, profiles(full_name, phone)').order('via99_balance', { ascending: false });
+  const el = document.getElementById('balances-table');
+  if (!data || !data.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No drivers yet.</td></tr>'; return; }
+  el.innerHTML = data.map(d => {
+    const balance = Number(d.via99_balance || 0);
+    const limit   = Number(d.credit_limit || 50);
+    const trips   = d.total_trips_ever || 0;
+    const tier    = trips <= 50 ? '🆕 New' : trips <= 200 ? '⭐ Regular' : trips <= 500 ? '⭐⭐ Trusted' : '⭐⭐⭐ Elite';
+    return `<tr>
+      <td class="fw-600">${d.profiles?.full_name || '—'}</td>
+      <td class="${balance > 0 ? 'color-red fw-600' : ''}">R${balance.toFixed(2)}</td>
+      <td>R${limit.toFixed(2)}</td>
+      <td>${tier}</td>
+      <td><span class="badge ${d.is_suspended ? 'badge-red' : 'badge-green'}">${d.is_suspended ? '⚠️ Suspended' : '✓ Active'}</span></td>
+      <td>
+        ${d.is_suspended ? `<button class="btn btn-approve btn-sm" onclick="reinstateDriver('${d.id}')">Reinstate</button>` : ''}
+        ${balance > 0 ? `<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="clearBalance('${d.id}')">Clear balance</button>` : '—'}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function reinstateDriver(id) {
+  await sb.from('drivers').update({ is_suspended: false, via99_balance: 0 }).eq('id', id);
+  toast('Driver reinstated ✓');
+  loadBalancesPage();
+}
+
+async function clearBalance(id) {
+  if (!confirm('Mark this driver balance as paid and clear to zero?')) return;
+  await sb.from('drivers').update({ via99_balance: 0, is_suspended: false }).eq('id', id);
+  toast('Balance cleared ✓');
+  loadBalancesPage();
+}
+
+// ═══ UPDATED showPage ═══
 // CLOSE MODAL ON OVERLAY CLICK
 document.getElementById('driver-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('driver-modal')) closeModal();

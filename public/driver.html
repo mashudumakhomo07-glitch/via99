@@ -439,6 +439,26 @@
         <div class="stat-label">Rating</div>
       </div>
     </div>
+    <!-- BALANCE CARD -->
+    <div id="balance-card" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <p style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:4px;">Via99 balance owed</p>
+        <p style="font-size:22px;font-weight:700;" id="dash-balance">R0.00</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px;" id="dash-credit-limit">Credit limit: R50.00</p>
+      </div>
+      <div style="text-align:right;">
+        <div id="balance-status-badge" class="badge badge-green">✓ Good standing</div>
+        <p style="font-size:11px;color:var(--muted);margin-top:6px;" id="dash-balance-tip">Pay when you reach your limit</p>
+      </div>
+    </div>
+    <!-- SUSPENDED BANNER -->
+    <div id="suspended-banner" style="display:none;background:rgba(232,38,26,0.1);border:1px solid rgba(232,38,26,0.3);border-radius:14px;padding:14px 16px;margin-bottom:16px;">
+      <p style="font-size:14px;font-weight:600;color:var(--red);margin-bottom:4px;">⚠️ Account suspended</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;">Your Via99 balance has reached your credit limit. Please settle your account to continue driving.</p>
+      <p style="font-size:13px;font-weight:600;color:var(--text);">EFT payment details:</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.7;">Bank: FNB · Account: IPFI Global Tech<br/>Acc No: [YOUR ACCOUNT NUMBER]<br/>Branch: 250655<br/>Reference: Your name + phone</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Once payment is received, your account will be reinstated within 2 hours.</p>
+    </div>
 
     <!-- online toggle -->
     <div class="online-toggle" id="online-toggle" onclick="toggleOnline()">
@@ -570,8 +590,11 @@
       </div>
     </div>
     <button class="btn btn-ghost mb-12" onclick="openNavModal('pickup')">🧭 Navigate to pickup</button>
-    <button class="btn btn-success" onclick="arrivedAtPickup()">✓ Arrived at pickup</button>
-    <button class="btn btn-danger mt-8" onclick="cancelCurrentTrip()">Cancel trip</button>
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="openDriverChat()">💬 Chat</button>
+      <button class="btn btn-success" style="flex:1;" onclick="arrivedAtPickup()">✓ Arrived</button>
+    </div>
+    <button class="btn btn-danger" onclick="cancelCurrentTrip()">Cancel trip</button>
   </div>
 </div>
 
@@ -633,7 +656,10 @@
     </div>
     <div class="divider"></div>
     <button class="btn btn-ghost mb-12" onclick="openNavModal('dest')">🧭 Navigate to destination</button>
-    <button class="btn btn-success" onclick="endTrip()">🏁 End trip</button>
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="openDriverChat()">💬 Chat</button>
+      <button class="btn btn-success" style="flex:1;" onclick="endTrip()">🏁 End trip</button>
+    </div>
   </div>
 </div>
 
@@ -1035,10 +1061,43 @@ function showScreenByApproval() {
   if (status === 'approved') {
     document.getElementById('driver-bottom-nav').style.display = 'flex';
     showScreen('screen-dashboard');
+    updateBalanceUI();
   } else if (status === 'rejected') {
     showScreen('screen-rejected');
   } else {
     showScreen('screen-pending');
+  }
+}
+
+function updateBalanceUI() {
+  if (!driverRecord) return;
+  const balance = Number(driverRecord.via99_balance || 0);
+  const limit   = Number(driverRecord.credit_limit || 50);
+  const suspended = driverRecord.is_suspended || false;
+  const pct = limit > 0 ? (balance / limit) * 100 : 0;
+
+  document.getElementById('dash-balance').textContent = `R${balance.toFixed(2)}`;
+  document.getElementById('dash-credit-limit').textContent = `Credit limit: R${limit.toFixed(2)}`;
+
+  const badge = document.getElementById('balance-status-badge');
+  const tip   = document.getElementById('dash-balance-tip');
+  const banner = document.getElementById('suspended-banner');
+
+  if (suspended) {
+    badge.className = 'badge badge-red';
+    badge.textContent = '⚠️ Suspended';
+    tip.textContent = 'Settle your account to drive';
+    banner.style.display = 'block';
+  } else if (pct >= 80) {
+    badge.className = 'badge badge-pending';
+    badge.textContent = '⚠️ Pay soon';
+    tip.textContent = `R${(limit - balance).toFixed(2)} remaining`;
+    banner.style.display = 'none';
+  } else {
+    badge.className = 'badge badge-green';
+    badge.textContent = '✓ Good standing';
+    tip.textContent = `R${(limit - balance).toFixed(2)} remaining`;
+    banner.style.display = 'none';
   }
 }
 
@@ -1105,6 +1164,11 @@ async function toggleOnline() {
 }
 
 async function goOnline() {
+  // Check suspension before going online
+  if (driverRecord && driverRecord.is_suspended) {
+    toast('Account suspended. Please settle your Via99 balance.');
+    return;
+  }
   isOnline = true;
   await sb.from('drivers').update({ is_online: true }).eq('id', currentUser.id);
   updateToggleUI();
@@ -1403,12 +1467,42 @@ async function endTrip() {
 
   if (error) { toast('Error completing trip.'); return; }
 
-  // Update driver totals
+  // Update driver totals + deduct Via99 fee from balance
   if (driverRecord) {
+    const fee         = Number(currentTrip.via99_fee || 0);
+    const newBalance  = Number(driverRecord.via99_balance || 0) + fee;
+    const creditLimit = Number(driverRecord.credit_limit || 50);
+    const newTrips    = (driverRecord.total_trips_ever || 0) + 1;
+
+    // Calculate credit limit tier
+    const newLimit = newTrips <= 50 ? 50
+                   : newTrips <= 200 ? 150
+                   : newTrips <= 500 ? 300
+                   : 500;
+
+    // Suspend if balance exceeds limit
+    const shouldSuspend = newBalance >= creditLimit;
+
     await sb.from('drivers').update({
-      total_trips:    (driverRecord.total_trips || 0) + 1,
-      total_earnings: (Number(driverRecord.total_earnings) || 0) + Number(currentTrip.driver_earnings || 0)
+      total_trips:      (driverRecord.total_trips || 0) + 1,
+      total_trips_ever: newTrips,
+      total_earnings:   (Number(driverRecord.total_earnings) || 0) + Number(currentTrip.driver_earnings || 0),
+      via99_balance:    parseFloat(newBalance.toFixed(2)),
+      credit_limit:     newLimit,
+      is_suspended:     shouldSuspend
     }).eq('id', currentUser.id);
+
+    // Update local record
+    driverRecord.via99_balance  = newBalance;
+    driverRecord.credit_limit   = newLimit;
+    driverRecord.total_trips_ever = newTrips;
+    driverRecord.is_suspended   = shouldSuspend;
+
+    if (shouldSuspend) {
+      toast('⚠️ You have reached your credit limit. Please settle your Via99 balance.');
+    } else if (newBalance >= creditLimit * 0.8) {
+      toast(`Via99 balance: R${newBalance.toFixed(2)} — pay soon to keep driving.`);
+    }
   }
 
   showCompleteScreen();
@@ -1442,11 +1536,19 @@ function showCompleteScreen() {
 async function backToDashboard() {
   await loadTodayStats();
   await loadTripHistory();
+  // Refresh driver record to get latest balance
+  const { data: dr } = await sb.from('drivers').select('*').eq('id', currentUser.id).single();
+  if (dr) driverRecord = dr;
+  updateBalanceUI();
   document.getElementById('driver-bottom-nav').style.display = 'flex';
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('dnav-dashboard').classList.add('active');
   showScreen('screen-dashboard');
-  if (isOnline) { showScreen('screen-online'); document.getElementById('driver-bottom-nav').style.display = 'none'; subscribeToNewTrips(); }
+  if (isOnline && !driverRecord?.is_suspended) {
+    showScreen('screen-online');
+    document.getElementById('driver-bottom-nav').style.display = 'none';
+    subscribeToNewTrips();
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1805,6 +1907,77 @@ function notifyDriver(title, body) {
       tag: 'via99-trip'
     });
   }
+}
+
+// ═══════════════════════════════════════════
+// DRIVER CHAT
+// ═══════════════════════════════════════════
+let driverChatSub = null;
+
+function openDriverChat() {
+  if (!currentTrip) return;
+  document.getElementById('driver-chat-modal').style.display = 'flex';
+  loadDriverChatMessages();
+  subscribeToDriverChat();
+}
+
+function closeDriverChat() {
+  document.getElementById('driver-chat-modal').style.display = 'none';
+  if (driverChatSub) { sb.removeChannel(driverChatSub); driverChatSub = null; }
+}
+
+async function loadDriverChatMessages() {
+  if (!currentTrip) return;
+  const { data } = await sb.from('trip_messages')
+    .select('*').eq('trip_id', currentTrip.id)
+    .order('created_at', { ascending: true });
+  renderDriverChatMessages(data || []);
+}
+
+function renderDriverChatMessages(messages) {
+  const el = document.getElementById('driver-chat-messages');
+  if (!messages.length) {
+    el.innerHTML = '<p style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0;">No messages yet.</p>';
+    return;
+  }
+  el.innerHTML = messages.map(m => {
+    const isMe = m.sender_role === 'driver';
+    return `<div style="display:flex;justify-content:${isMe ? 'flex-end' : 'flex-start'};margin-bottom:8px;">
+      <div style="max-width:75%;padding:10px 14px;border-radius:${isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px'};
+        background:${isMe ? 'var(--green)' : 'var(--surface2)'};color:#fff;font-size:14px;">
+        ${m.message}
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function subscribeToDriverChat() {
+  if (!currentTrip) return;
+  driverChatSub = sb.channel('driver-chat-' + currentTrip.id)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'trip_messages',
+      filter: `trip_id=eq.${currentTrip.id}`
+    }, () => loadDriverChatMessages())
+    .subscribe();
+}
+
+async function sendDriverChatMessage() {
+  const input = document.getElementById('driver-chat-input');
+  const message = input.value.trim();
+  if (!message || !currentTrip) return;
+  input.value = '';
+  await sb.from('trip_messages').insert({
+    trip_id:     currentTrip.id,
+    sender_id:   currentUser?.id || null,
+    sender_role: 'driver',
+    message
+  });
+}
+
+function sendDriverQuickMsg(msg) {
+  document.getElementById('driver-chat-input').value = msg;
+  sendDriverChatMessage();
 }
 
 // ═══════════════════════════════════════════
