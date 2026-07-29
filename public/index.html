@@ -905,23 +905,64 @@ async function bookRide(){
   document.getElementById('finding-dest').textContent=destAddress.split(',')[0];
   document.getElementById('finding-fare').textContent=`R${passengerFare.toFixed(2)}`;
   showRideScreen('screen-finding');
-  startPolling();
+  subscribeToTrip();
 }
 
-// POLLING
-function startPolling(){stopPolling();pollInterval=setInterval(pollTrip,3000);}
-function stopPolling(){if(pollInterval){clearInterval(pollInterval);pollInterval=null;}}
+// ═══════════════════════════════════════════
+// REALTIME TRIP SUBSCRIPTION (replaces polling)
+// ═══════════════════════════════════════════
+let tripSub = null;
 
-async function pollTrip(){
-  if(!currentTrip)return;
-  const{data,error}=await sb.from('trips').select('*,drivers(*,profiles(full_name,phone))').eq('id',currentTrip.id).single();
-  if(error||!data)return;
-  currentTrip=data;
-  if(data.status==='matched'){stopPolling();showMatchedScreen(data);if(!realtimeSub)subscribeDriverLocation(data.driver_id);}
-  else if(data.status==='picking_up'){showRideScreen('screen-pickup');updatePickupScreen(data);}
-  else if(data.status==='in_trip'){showRideScreen('screen-intrip');updateIntripScreen(data);}
-  else if(data.status==='completed'){stopPolling();unsubscribeDriver();showCompletedScreen(data);}
-  else if(data.status==='cancelled'){stopPolling();unsubscribeDriver();toast('Trip was cancelled.');resetToHome();}
+function startPolling() { subscribeToTrip(); } // alias for legacy calls
+function stopPolling()  { unsubscribeTrip(); }  // alias for legacy calls
+
+function subscribeToTrip() {
+  unsubscribeTrip();
+  if (!currentTrip) return;
+  tripSub = sb
+    .channel('trip-' + currentTrip.id)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'trips',
+      filter: `id=eq.${currentTrip.id}`
+    }, async payload => {
+      const updated = payload.new;
+      currentTrip = { ...currentTrip, ...updated };
+
+      // Fetch driver details if just matched
+      if (updated.status === 'matched' && updated.driver_id) {
+        const { data: full } = await sb
+          .from('trips')
+          .select('*,drivers(*,profiles(full_name,phone))')
+          .eq('id', currentTrip.id)
+          .single();
+        if (full) currentTrip = full;
+        unsubscribeTrip();
+        showMatchedScreen(currentTrip);
+        if (!realtimeSub) subscribeDriverLocation(updated.driver_id);
+      } else if (updated.status === 'picking_up') {
+        showRideScreen('screen-pickup');
+        updatePickupScreen(currentTrip);
+      } else if (updated.status === 'in_trip') {
+        showRideScreen('screen-intrip');
+        updateIntripScreen(currentTrip);
+      } else if (updated.status === 'completed') {
+        unsubscribeTrip();
+        unsubscribeDriver();
+        showCompletedScreen(currentTrip);
+      } else if (updated.status === 'cancelled') {
+        unsubscribeTrip();
+        unsubscribeDriver();
+        toast('Trip was cancelled.');
+        resetToHome();
+      }
+    })
+    .subscribe();
+}
+
+function unsubscribeTrip() {
+  if (tripSub) { sb.removeChannel(tripSub); tripSub = null; }
 }
 
 function showMatchedScreen(trip){
@@ -932,7 +973,7 @@ function showMatchedScreen(trip){
   document.getElementById('matched-eta').textContent=`${Math.round(trip.estimated_duration_min||5)} min`;
   document.getElementById('pickup-driver-name').textContent=d?.profiles?.full_name||'Driver';
   document.getElementById('pickup-driver-vehicle').textContent=`${d?.vehicle_colour||''} ${d?.vehicle_make||''} ${d?.vehicle_model||''}`.trim();
-  showRideScreen('screen-matched');startPolling();
+  showRideScreen('screen-matched');
 }
 function updatePickupScreen(trip){document.getElementById('pickup-eta').textContent=`${Math.round(trip.estimated_duration_min||3)} min`;}
 function updateIntripScreen(trip){
@@ -1012,13 +1053,14 @@ function unsubscribeDriver(){
 async function cancelTrip(){
   if(!currentTrip){resetToHome();return;}
   await sb.from('trips').update({status:'cancelled'}).eq('id',currentTrip.id);
-  stopPolling();unsubscribeDriver();toast('Trip cancelled.');resetToHome();
+  unsubscribeTrip();unsubscribeDriver();toast('Trip cancelled.');resetToHome();
 }
 function callDriver(){
   const phone=currentTrip?.drivers?.profiles?.phone;
   if(phone)window.open(`tel:${phone}`);else toast('Driver number unavailable.');
 }
 function resetToHome(){
+  unsubscribeTrip();
   currentTrip=null;destLat=null;destLng=null;destAddress='';
   if(destMarker){destMarker.remove();destMarker=null;}
   try{if(map.getLayer('route'))map.removeLayer('route');if(map.getSource('route'))map.removeSource('route');}catch(e){}
