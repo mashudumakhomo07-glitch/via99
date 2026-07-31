@@ -10,6 +10,7 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.faceio.net/fio.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -152,6 +153,39 @@ input::placeholder{color:var(--muted);}
 .notif-toggle.on{background:var(--green);}
 .notif-thumb{position:absolute;width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:transform 0.2s;}
 .notif-toggle.on .notif-thumb{transform:translateX(20px);}
+
+/* SOS BUTTON */
+.sos-btn{
+  position:fixed;bottom:100px;right:20px;z-index:40;
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(135deg,#E8261A,#B91C13);
+  border:none;color:#fff;font-size:11px;font-weight:700;
+  cursor:pointer;box-shadow:0 4px 20px rgba(232,38,26,0.5);
+  display:none;flex-direction:column;align-items:center;
+  justify-content:center;gap:1px;letter-spacing:0.5px;
+  animation:sos-pulse 2s ease-in-out infinite;
+}
+@keyframes sos-pulse{
+  0%,100%{box-shadow:0 4px 20px rgba(232,38,26,0.5);}
+  50%{box-shadow:0 4px 32px rgba(232,38,26,0.9),0 0 0 8px rgba(232,38,26,0.15);}
+}
+.sos-btn span{font-size:18px;line-height:1;}
+
+/* SHARE TRIP MODAL */
+.share-modal{
+  position:fixed;inset:0;z-index:70;background:rgba(0,0,0,0.8);
+  display:none;align-items:flex-end;
+}
+
+/* REPORT CATEGORIES */
+.report-cat{
+  padding:12px 10px;border:1.5px solid var(--border);border-radius:12px;
+  cursor:pointer;text-align:center;background:var(--surface2);transition:all 0.15s;
+}
+.report-cat:active{border-color:var(--red);background:rgba(232,38,26,0.08);}
+.report-cat.selected{border-color:var(--red);background:rgba(232,38,26,0.08);}
+.report-cat-icon{font-size:22px;margin-bottom:4px;}
+.report-cat-label{font-size:12px;font-weight:600;color:var(--text);}
 
 /* misc */
 .text-center{text-align:center;}
@@ -382,10 +416,11 @@ input::placeholder{color:var(--muted);}
       </div>
       <div class="eta-badge" id="matched-eta">— min</div>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
       <button class="btn btn-ghost" style="flex:1;" onclick="callDriver()">📞 Call</button>
       <button class="btn btn-ghost" style="flex:1;" onclick="openChat()">💬 Chat</button>
-      <button class="btn btn-danger" style="flex:1;" onclick="cancelTrip()">Cancel</button>
+      <button class="btn btn-ghost" style="flex:1;" onclick="openShareModal()">📡 Share</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="cancelTrip()">✕</button>
     </div>
   </div>
 </div>
@@ -426,13 +461,18 @@ input::placeholder{color:var(--muted);}
       <div class="stat-box"><div class="stat-val color-red" id="intrip-fare">R—</div><div class="stat-label">fare</div></div>
     </div>
     <p class="fs-13 color-muted text-center" id="intrip-dest">Heading to —</p>
+    <div class="divider"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="openShareModal()">📡 Share trip</button>
+      <button class="btn btn-danger" style="flex:1;font-size:13px;" onclick="openReportModal('in_trip')">🚨 Report</button>
+    </div>
   </div>
 </div>
 
 <!-- ═══════════════ SCREEN: COMPLETED ═══════════════ -->
 <div id="screen-completed" class="screen">
   <div class="topbar"><img src="" id="logo-completed" style="height:28px;object-fit:contain;" alt="Via99"/><div style="width:38px"></div></div>
-  <div class="sheet">
+  <div class="sheet" style="padding-bottom:40px;">
     <div class="sheet-handle"></div>
     <p class="text-center fw-600" style="font-size:18px;">Trip complete 🎉</p>
     <div class="big-amount color-red" id="completed-fare">R—</div>
@@ -446,6 +486,10 @@ input::placeholder{color:var(--muted);}
     </div>
     <button class="btn btn-primary" id="rate-btn" onclick="submitRating()">Submit rating</button>
     <button class="btn btn-ghost mt-8" onclick="skipRating()">Skip</button>
+    <div class="divider"></div>
+    <button class="btn btn-danger mt-8" onclick="openReportModal('post_trip')" style="font-size:13px;">
+      ⚠️ Report an issue with this trip
+    </button>
   </div>
 </div>
 
@@ -627,7 +671,7 @@ input::placeholder{color:var(--muted);}
 </div>
 
 <script>
-const MAPBOX_TOKEN='pk.eyJ1IjoiY29sZGVyc29tZXRpbWVzIiwiYSI6ImNtcnYzdGxjbTA5Y3Yyd3F1bDhpM2JkNTYifQ.A3QfP6HC8I0D5jaELWpetA';
+const MAPBOX_TOKEN='pk.eyJ1IjoiY29sZGVyc29tZXRpbWVzIiwiYSI6ImNtczh1ZXluYzBhOHEyeXIyZ2t0Y2pwdW8ifQ.vMscIG-Q2cnjXTS6lFYPeA';
 const SUPABASE_URL='https://ztelvtwdujboraxokhux.supabase.co';
 const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0ZWx2dHdkdWpib3JheG9raHV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzU5NTksImV4cCI6MjEwMDU1MTk1OX0.ZjMUuDolReP_PsvC66fyWlYcGO01NDRi8HoB24rCBaM';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
@@ -651,6 +695,7 @@ let inRideFlow=false;
 async function init(){
   injectLogos();
   initMap();
+  initFaceIO();
   await loadFareConfig();
   await loadSurgeConfig();
   await checkAuth();
@@ -901,6 +946,23 @@ function formatExpiry(el){
 async function bookRide(){
   if(!currentUser){toast('Please sign in to book a ride.');switchTab('profile');return;}
   if(!checkRateLimit()){return;}
+
+  // Check if in dangerous zone — require face verification
+  const dangerZone = isInDangerousZone(userLat, userLng);
+  if (dangerZone) {
+    requireFaceVerification('unsafe_area', async (verified) => {
+      if (!verified) {
+        toast('Face verification required to book in ' + dangerZone.name + '.');
+        return;
+      }
+      await proceedWithBooking();
+    });
+    return;
+  }
+  await proceedWithBooking();
+}
+
+async function proceedWithBooking(){
   if(selectedPayment==='card'){
     const num=document.getElementById('card-number').value.replace(/\s/g,'');
     const exp=document.getElementById('card-expiry').value;
@@ -988,6 +1050,7 @@ function unsubscribeTrip() {
 }
 
 function showMatchedScreen(trip){
+  showSOSBtn();
   const d=trip.drivers;
   document.getElementById('matched-name').textContent=d?.profiles?.full_name||'Driver';
   document.getElementById('matched-vehicle').textContent=`${d?.vehicle_colour||''} ${d?.vehicle_make||''} ${d?.vehicle_model||''} · ${d?.vehicle_plate||''}`.trim();
@@ -1008,6 +1071,9 @@ function showCompletedScreen(trip){
   document.getElementById('completed-fare').textContent=`R${Number(trip.passenger_fare).toFixed(2)}`;
   document.getElementById('completed-method').textContent=`Paid by ${trip.payment_method}`;
   selectedRating=0;
+  // Store for post-trip reporting
+  lastCompletedTripId   = trip.id;
+  lastCompletedDriverId = trip.driver_id;
   document.querySelectorAll('.star').forEach(s=>s.classList.remove('active'));
   showRideScreen('screen-completed');
 }
@@ -1083,6 +1149,7 @@ function callDriver(){
 }
 function resetToHome(){
   unsubscribeTrip();
+  hideSOSBtn();
   currentTrip=null;destLat=null;destLng=null;destAddress='';
   if(destMarker){destMarker.remove();destMarker=null;}
   try{if(map.getLayer('route'))map.removeLayer('route');if(map.getSource('route'))map.removeSource('route');}catch(e){}
@@ -1096,6 +1163,12 @@ function resetToHome(){
 function quickDest(label){
   document.getElementById('dest-input').value=label;
   showRideScreen('screen-search');searchPlaces(label,'dest');
+}
+
+function openHistoryReport(tripId, driverId) {
+  lastCompletedTripId   = tripId;
+  lastCompletedDriverId = driverId;
+  openReportModal('history');
 }
 
 // ═══ TRIPS TAB ═══
@@ -1117,6 +1190,7 @@ async function loadTripsTab(){
       <div class="fare-row"><span class="fare-label">Payment</span><span class="fare-val">${t.payment_method||'—'}</span></div>
       <div class="divider"></div>
       <div class="fare-row" style="margin-bottom:0;"><span class="fare-label" style="font-size:12px;">${new Date(t.created_at).toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})}</span><span class="fare-val fw-600 color-red">R${Number(t.passenger_fare||0).toFixed(2)}</span></div>
+      ${t.status==='completed'?`<button onclick="openHistoryReport('${t.id}','${t.driver_id}')" style="margin-top:10px;width:100%;padding:10px;border:1px solid rgba(232,38,26,0.3);border-radius:10px;background:rgba(232,38,26,0.06);color:var(--red);font-size:12px;font-weight:600;cursor:pointer;">⚠️ Report an issue</button>`:''}
     </div>`;
   }).join('');
 }
@@ -1275,6 +1349,13 @@ async function signUp(){
   toast('Account created! Welcome to Via99.');
   document.getElementById('bottom-nav').style.display='flex';
   switchTab('home');
+
+  // Prompt face enrollment after signup
+  setTimeout(() => {
+    requireFaceVerification('signup', (success, facialId) => {
+      if (success) toast('Face verification set up successfully! ✓');
+    });
+  }, 1500);
 }
 async function loadProfile(){
   if(!currentUser)return;
@@ -1533,6 +1614,194 @@ async function loadNotifications() {
 }
 
 // ═══════════════════════════════════════════
+// FACEIO — FACE VERIFICATION
+// ═══════════════════════════════════════════
+const FACEIO_PUBLIC_ID = 'fioa2acd';
+let faceio = null;
+let faceVerificationCallback = null;
+let faceVerificationContext = null;
+
+// Dangerous zones in Johannesburg
+const DANGEROUS_ZONES = [
+  { name: 'Hillbrow',         lat: -26.1886, lng: 28.0464, radius: 1.5 },
+  { name: 'Alexandra',        lat: -26.1027, lng: 28.0977, radius: 2.0 },
+  { name: 'Johannesburg CBD', lat: -26.2041, lng: 28.0440, radius: 1.5 },
+  { name: 'Berea',            lat: -26.1920, lng: 28.0530, radius: 1.0 },
+  { name: 'Yeoville',         lat: -26.1868, lng: 28.0640, radius: 1.0 },
+  { name: 'Ivory Park',       lat: -25.9893, lng: 28.2134, radius: 2.0 },
+  { name: 'Mamelodi East',    lat: -25.7167, lng: 28.3833, radius: 2.0 },
+  { name: 'Soweto',           lat: -26.2678, lng: 27.8588, radius: 3.0 },
+  { name: 'Diepsloot',        lat: -25.9295, lng: 28.0111, radius: 2.0 },
+  { name: 'N1 Rivonia',       lat: -26.0584, lng: 28.0597, radius: 0.5 },
+];
+
+function initFaceIO() {
+  try {
+    faceio = new faceIO(FACEIO_PUBLIC_ID);
+  } catch(e) {
+    console.log('FaceIO init:', e);
+  }
+}
+
+function isInDangerousZone(lat, lng) {
+  for (const zone of DANGEROUS_ZONES) {
+    const dist = getDistanceKm(lat, lng, zone.lat, zone.lng);
+    if (dist <= zone.radius) return zone;
+  }
+  return null;
+}
+
+// Show face verification modal
+function requireFaceVerification(context, callback) {
+  faceVerificationCallback = callback;
+  faceVerificationContext  = context;
+
+  const icon  = document.getElementById('face-modal-icon');
+  const title = document.getElementById('face-modal-title');
+  const sub   = document.getElementById('face-modal-sub');
+
+  if (context === 'signup') {
+    icon.textContent  = '🔐';
+    title.textContent = 'Set up face verification';
+    sub.textContent   = 'Take a quick selfie to secure your account. This is used to verify your identity in unsafe areas.';
+  } else if (context === 'unsafe_area') {
+    icon.textContent  = '⚠️';
+    title.textContent = 'Unsafe area detected';
+    sub.textContent   = 'You are in a high-risk area. Please verify your identity before booking a ride.';
+  }
+
+  document.getElementById('face-modal-loading').style.display = 'none';
+  document.getElementById('face-modal-btn').style.display = 'block';
+  document.getElementById('face-modal').style.display = 'flex';
+}
+
+async function startFaceVerification() {
+  if (!faceio) { initFaceIO(); }
+  if (!faceio) { toast('Face verification unavailable.'); return; }
+
+  document.getElementById('face-modal-btn').style.display     = 'none';
+  document.getElementById('face-modal-loading').style.display = 'block';
+
+  try {
+    if (faceVerificationContext === 'signup') {
+      // Enroll new face
+      const response = await faceio.enroll({
+        locale:      'auto',
+        payload:     { userId: currentUser?.id || 'guest' }
+      });
+      // Save facialId to profile
+      if (currentUser) {
+        await sb.from('profiles').update({
+          face_id: response.facialId
+        }).eq('id', currentUser.id);
+      }
+      closeFaceModal();
+      if (faceVerificationCallback) faceVerificationCallback(true, response.facialId);
+
+    } else {
+      // Authenticate existing face
+      const response = await faceio.authenticate({ locale: 'auto' });
+      closeFaceModal();
+      if (faceVerificationCallback) faceVerificationCallback(true, response.facialId);
+    }
+
+  } catch(err) {
+    document.getElementById('face-modal-loading').style.display = 'none';
+    document.getElementById('face-modal-btn').style.display     = 'block';
+
+    const errMap = {
+      PERMISSION_REFUSED:    'Camera permission denied. Please allow camera access.',
+      NO_FACES_DETECTED:     'No face detected. Please look directly at the camera.',
+      UNRECOGNIZED_FACE:     'Face not recognised. Please try again.',
+      MANY_FACES:            'Multiple faces detected. Please ensure only you are visible.',
+      FACE_MISMATCH:         'Face does not match. Verification failed.',
+      PAD_ATTACK:            'Spoofing detected. Please use your real face.',
+      NETWORK_FAILURE:       'Network error. Check your connection and try again.',
+    };
+    toast(errMap[err.code] || 'Verification failed. Please try again.');
+    if (faceVerificationCallback) faceVerificationCallback(false, null);
+  }
+}
+
+function cancelFaceVerification() {
+  closeFaceModal();
+  if (faceVerificationCallback) faceVerificationCallback(false, null);
+}
+
+function closeFaceModal() {
+  document.getElementById('face-modal').style.display = 'none';
+  faceVerificationCallback = null;
+}
+
+// ═══════════════════════════════════════════
+// SOS EMERGENCY SYSTEM
+// ═══════════════════════════════════════════
+function showSOSBtn() { document.getElementById('sos-btn').style.display = 'flex'; }
+function hideSOSBtn() { document.getElementById('sos-btn').style.display = 'none'; }
+
+function triggerSOS() {
+  document.getElementById('sos-modal').style.display = 'flex';
+}
+function closeSosModal() {
+  document.getElementById('sos-modal').style.display = 'none';
+}
+
+async function confirmSOS() {
+  closeSosModal();
+  if (!currentTrip) return;
+
+  // Save SOS alert to DB
+  await sb.from('driver_reports').insert({
+    trip_id:      currentTrip.id,
+    passenger_id: currentUser?.id || null,
+    driver_id:    currentTrip.driver_id || null,
+    category:     'sos_alert',
+    description:  `SOS triggered at ${new Date().toISOString()}. Passenger lat: ${userLat}, lng: ${userLng}`,
+    severity:     'critical',
+    status:       'open'
+  }).catch(() => {});
+
+  toast('🚨 Via99 support has been alerted. Stay calm.');
+
+  // Auto-open share modal so they can share location
+  setTimeout(() => openShareModal(), 1000);
+}
+
+function callEmergency() {
+  closeSosModal();
+  window.open('tel:10111');
+}
+
+// ═══════════════════════════════════════════
+// LIVE TRIP SHARING
+// ═══════════════════════════════════════════
+function openShareModal() {
+  if (!currentTrip) return;
+  const shareUrl = `https://via99.vercel.app/track.html?trip=${currentTrip.id}`;
+  document.getElementById('share-link-text').textContent = shareUrl;
+  document.getElementById('share-modal').style.display = 'flex';
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').style.display = 'none';
+}
+
+function copyShareLink() {
+  const link = document.getElementById('share-link-text').textContent;
+  navigator.clipboard.writeText(link).then(() => {
+    toast('Link copied to clipboard!');
+  }).catch(() => {
+    toast('Copy failed — long press the link to copy manually.');
+  });
+}
+
+function shareViaWhatsApp() {
+  const link = document.getElementById('share-link-text').textContent;
+  const msg  = encodeURIComponent(`I'm in a Via99 ride. Track me live here: ${link}`);
+  window.open(`https://wa.me/?text=${msg}`);
+}
+
+// ═══════════════════════════════════════════
 // SECURITY — INPUT SANITIZATION + RATE LIMITING
 // ═══════════════════════════════════════════
 function sanitize(str) {
@@ -1566,6 +1835,165 @@ function checkRateLimit() {
 
 // Prevent right-click source viewing on mobile
 document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ═══════════════════════════════════════════
+// DRIVER REPORT SYSTEM
+// ═══════════════════════════════════════════
+const REPORT_CATEGORIES = [
+  { id: 'romantic_advances',     icon: '🚨',   label: 'Romantic advances',     severity: 'zero_tolerance' },
+  { id: 'dangerous_driving',     icon: '🚗💨', label: 'Dangerous driving',     severity: 'high' },
+  { id: 'wrong_route',           icon: '🗺️',   label: 'Wrong route',           severity: 'high' },
+  { id: 'harassment',            icon: '😡',   label: 'Harassment',            severity: 'critical' },
+  { id: 'under_influence',       icon: '🍺',   label: 'Under the influence',   severity: 'critical' },
+  { id: 'wrong_vehicle',         icon: '🚙',   label: 'Wrong vehicle',         severity: 'high' },
+  { id: 'extra_payment',         icon: '💰',   label: 'Asked for extra cash',  severity: 'medium' },
+  { id: 'inappropriate_conduct', icon: '🚫',   label: 'Inappropriate conduct', severity: 'high' },
+  { id: 'did_not_arrive',        icon: '📍',   label: 'Did not arrive',        severity: 'medium' },
+  { id: 'other',                 icon: '📋',   label: 'Other issue',           severity: 'low' },
+];
+
+let selectedReportCategory = null;
+let reportContext = null; // 'in_trip' | 'post_trip' | 'history'
+let reportTripId = null;
+let reportDriverId = null;
+
+function openReportModal(context) {
+  reportContext = context;
+  reportTripId  = currentTrip?.id || lastCompletedTripId;
+  reportDriverId = currentTrip?.driver_id || lastCompletedDriverId;
+  selectedReportCategory = null;
+
+  // Render categories
+  const el = document.getElementById('report-categories');
+  el.innerHTML = REPORT_CATEGORIES.map(c => `
+    <div class="report-cat" id="rcat-${c.id}" onclick="selectReportCategory('${c.id}','${c.severity}')">
+      <div class="report-cat-icon">${c.icon}</div>
+      <div class="report-cat-label">${c.label}</div>
+    </div>`).join('');
+
+  document.getElementById('report-description').value = '';
+  document.getElementById('report-submit-btn').disabled = true;
+  document.getElementById('report-severity-note').style.display = 'none';
+  document.getElementById('report-modal').style.display = 'flex';
+}
+
+function selectReportCategory(id, severity) {
+  selectedReportCategory = { id, severity };
+  document.querySelectorAll('.report-cat').forEach(el => el.classList.remove('selected'));
+  document.getElementById('rcat-' + id).classList.add('selected');
+  document.getElementById('report-submit-btn').disabled = false;
+
+  // Show emergency note for critical and zero_tolerance reports
+  const note = document.getElementById('report-severity-note');
+  if (severity === 'zero_tolerance') {
+    note.style.display = 'block';
+    note.innerHTML = `
+      <p style="font-size:14px;color:var(--red);font-weight:700;">🚨 Zero tolerance violation</p>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px;">Romantic advances by a driver are a <strong>zero tolerance offence</strong> on Via99. This driver will be <strong>permanently blocked immediately</strong> upon submission. No warnings. No appeals.</p>`;
+  } else if (severity === 'critical') {
+    note.style.display = 'block';
+    note.innerHTML = `
+      <p style="font-size:13px;color:var(--red);font-weight:600;">🚨 Emergency report</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px;">This will be flagged as critical and reviewed immediately by Via99 support.</p>`;
+  } else {
+    note.style.display = 'none';
+    note.innerHTML = '';
+  }
+}
+
+function closeReportModal() {
+  document.getElementById('report-modal').style.display = 'none';
+  selectedReportCategory = null;
+}
+
+async function submitReport() {
+  if (!selectedReportCategory) return;
+  const btn = document.getElementById('report-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  const description = document.getElementById('report-description').value.trim();
+
+  const { error } = await sb.from('driver_reports').insert({
+    trip_id:      reportTripId,
+    passenger_id: currentUser?.id || null,
+    driver_id:    reportDriverId,
+    category:     selectedReportCategory.id,
+    description:  description || null,
+    severity:     selectedReportCategory.severity,
+    status:       'open'
+  });
+
+  btn.disabled = false; btn.textContent = 'Submit report';
+
+  if (error) { toast('Failed to submit report. Try again.'); return; }
+
+  // Zero tolerance — instant permanent block, no appeals
+  if (selectedReportCategory.severity === 'zero_tolerance' && reportDriverId) {
+    await issueZeroToleranceBlock(reportDriverId, selectedReportCategory.id);
+    closeReportModal();
+    toast('🚨 Driver has been permanently blocked. Thank you for keeping Via99 safe.');
+    return;
+  }
+
+  // Auto-strike for critical reports (harassment, under influence)
+  if (selectedReportCategory.severity === 'critical' && reportDriverId) {
+    await issueCriticalStrike(reportDriverId, selectedReportCategory.id);
+  }
+
+  closeReportModal();
+  toast('Report submitted. Via99 will investigate within 24 hours.');
+}
+
+async function issueCriticalStrike(driverId, reason) {
+  const { data: driver } = await sb.from('drivers')
+    .select('strike_count, is_suspended').eq('id', driverId).single();
+  if (!driver) return;
+
+  const newStrikes = (driver.strike_count || 0) + 1;
+  const shouldSuspend = newStrikes >= 3;
+
+  await sb.from('drivers').update({
+    strike_count:   newStrikes,
+    last_report_at: new Date().toISOString(),
+    is_suspended:   shouldSuspend || driver.is_suspended
+  }).eq('id', driverId);
+
+  await sb.from('driver_strikes').insert({
+    driver_id: driverId,
+    reason,
+    issued_by: 'system'
+  });
+}
+
+async function issueZeroToleranceBlock(driverId, reason) {
+  // Permanent block — set strikes to 99, suspend immediately, flag approval as rejected
+  await sb.from('drivers').update({
+    strike_count:    99,
+    is_suspended:    true,
+    is_online:       false,
+    approval_status: 'rejected',
+    last_report_at:  new Date().toISOString()
+  }).eq('id', driverId);
+
+  // Record the strike with zero_tolerance flag
+  await sb.from('driver_strikes').insert({
+    driver_id: driverId,
+    reason:    `ZERO_TOLERANCE: ${reason}`,
+    issued_by: 'system'
+  });
+
+  // Create a notification for admin
+  await sb.from('notifications').insert({
+    user_id:    null,
+    title:      '🚨 Zero tolerance block',
+    body:       `Driver permanently blocked for romantic advances. Driver ID: ${driverId}`,
+    type:       'general'
+  }).catch(() => {}); // non-blocking
+}
+
+// Track last completed trip for post-trip reporting
+let lastCompletedTripId   = null;
+let lastCompletedDriverId = null;
 
 // BOOT
 document.getElementById('bottom-nav').style.display='flex';
@@ -1669,6 +2097,86 @@ init();
     </div>
 
     <p class="fs-12 color-muted text-center mt-16">Via99 Privacy Policy · Terms of Service</p>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div id="report-modal" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,0.75);align-items:flex-end;">
+  <div style="width:100%;background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border);padding:24px 20px 40px;max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <p style="font-size:17px;font-weight:700;">⚠️ Report an issue</p>
+      <div class="topbar-action" onclick="closeReportModal()">×</div>
+    </div>
+
+    <p class="label mb-12">What happened?</p>
+    <div id="report-categories" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;"></div>
+
+    <p class="label">Additional details <span class="color-muted" style="text-transform:none;font-weight:400;">(optional)</span></p>
+    <textarea id="report-description" placeholder="Tell us what happened in more detail..." style="width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;resize:none;min-height:100px;margin-bottom:16px;"></textarea>
+
+    <div id="report-severity-note" style="display:none;background:rgba(232,38,26,0.08);border:1px solid rgba(232,38,26,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <p style="font-size:13px;color:var(--red);font-weight:600;">🚨 Emergency report</p>
+      <p style="font-size:12px;color:var(--muted);margin-top:4px;">This will be flagged as critical and reviewed immediately by Via99 support.</p>
+    </div>
+
+    <button class="btn btn-primary" id="report-submit-btn" onclick="submitReport()" disabled>Submit report</button>
+    <button class="btn btn-ghost mt-8" onclick="closeReportModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- SOS BUTTON (visible during active trip) -->
+<button class="sos-btn" id="sos-btn" onclick="triggerSOS()">
+  <span>🆘</span>SOS
+</button>
+
+<!-- SHARE TRIP MODAL -->
+<div class="share-modal" id="share-modal">
+  <div style="width:100%;background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border);padding:24px 20px 40px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <p style="font-size:17px;font-weight:700;">📡 Share trip live</p>
+      <div class="topbar-action" onclick="closeShareModal()">×</div>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Share this link with a trusted contact. They can track your driver's location in real time without needing the app.</p>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+      <p style="font-size:13px;flex:1;word-break:break-all;" id="share-link-text">—</p>
+      <button class="btn btn-ghost" style="width:auto;padding:10px 14px;flex-shrink:0;" onclick="copyShareLink()">📋 Copy</button>
+    </div>
+    <button class="btn btn-primary mb-12" onclick="shareViaWhatsApp()">💬 Share via WhatsApp</button>
+    <button class="btn btn-ghost" onclick="closeShareModal()">Close</button>
+  </div>
+</div>
+
+<!-- SOS CONFIRMATION MODAL -->
+<div id="sos-modal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(0,0,0,0.9);align-items:center;justify-content:center;padding:24px;">
+  <div style="width:100%;max-width:340px;background:var(--surface);border:2px solid var(--red);border-radius:20px;padding:28px;text-align:center;">
+    <div style="font-size:52px;margin-bottom:16px;">🆘</div>
+    <p style="font-size:20px;font-weight:700;margin-bottom:8px;">Emergency SOS</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;">This will alert Via99 support with your live location and driver details. You can also call emergency services.</p>
+    <button class="btn btn-primary mb-12" style="background:linear-gradient(135deg,#E8261A,#B91C13);" onclick="confirmSOS()">
+      🚨 Alert Via99 + share location
+    </button>
+    <button class="btn btn-ghost mb-12" onclick="callEmergency()">
+      📞 Call 10111 (Police)
+    </button>
+    <button class="btn btn-ghost" onclick="closeSosModal()">Cancel — I am safe</button>
+  </div>
+</div>
+
+<!-- FACE VERIFICATION MODAL -->
+<div id="face-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;flex-direction:column;padding:24px;">
+  <div style="width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;" id="face-modal-icon">🔐</div>
+    <p style="font-size:18px;font-weight:700;margin-bottom:8px;" id="face-modal-title">Identity verification</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;" id="face-modal-sub">We need to verify your identity before continuing.</p>
+    <div id="face-modal-loading" style="display:none;margin-bottom:16px;">
+      <div class="spinner" style="border-top-color:var(--green);"></div>
+      <p style="font-size:13px;color:var(--muted);">Verifying your face...</p>
+    </div>
+    <button class="btn btn-primary mb-12" id="face-modal-btn" onclick="startFaceVerification()">
+      📷 Start face verification
+    </button>
+    <button class="btn btn-ghost" onclick="cancelFaceVerification()">Cancel</button>
+    <p style="font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;">Your face data is encrypted and stored securely. Via99 uses this only to verify your identity.</p>
   </div>
 </div>
 

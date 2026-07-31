@@ -7,6 +7,7 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.faceio.net/fio.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -878,6 +879,25 @@
   </div>
 </div>
 
+<!-- FACE VERIFICATION MODAL -->
+<div id="face-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;flex-direction:column;padding:24px;">
+  <div style="width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;">🔐</div>
+    <p style="font-size:18px;font-weight:700;margin-bottom:8px;">Identity check</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;" id="driver-face-sub">Verify your identity to see trip details.</p>
+    <div id="driver-face-loading" style="display:none;margin-bottom:16px;">
+      <div class="spinner" style="border-top-color:var(--green);"></div>
+      <p style="font-size:13px;color:var(--muted);">Verifying your face...</p>
+    </div>
+    <div id="driver-face-attempts" style="font-size:12px;color:var(--muted);margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-success mb-12" id="driver-face-btn" onclick="startDriverFaceVerification()">
+      📷 Verify face
+    </button>
+    <button class="btn btn-danger" onclick="rejectAfterFaceFailure()">Reject trip instead</button>
+    <p style="font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;">You must verify your identity before seeing passenger pickup details.</p>
+  </div>
+</div>
+
 <!-- NAV MODAL -->
 <div id="nav-modal" style="display:none;" onclick="closeNavModal(event)">
   <div class="nav-modal-overlay">
@@ -913,7 +933,7 @@
 // ═══════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiY29sZGVyc29tZXRpbWVzIiwiYSI6ImNtcnYzdGxjbTA5Y3Yyd3F1bDhpM2JkNTYifQ.A3QfP6HC8I0D5jaELWpetA';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiY29sZGVyc29tZXRpbWVzIiwiYSI6ImNtczh1ZXluYzBhOHEyeXIyZ2t0Y2pwdW8ifQ.vMscIG-Q2cnjXTS6lFYPeA';
 const SUPABASE_URL = 'https://ztelvtwdujboraxokhux.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0ZWx2dHdkdWpib3JheG9raHV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzU5NTksImV4cCI6MjEwMDU1MTk1OX0.ZjMUuDolReP_PsvC66fyWlYcGO01NDRi8HoB24rCBaM';
 
@@ -945,6 +965,7 @@ let todayTrips = 0;
 async function init() {
   injectLogos();
   initMap();
+  initFaceIO();
   registerPush();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
@@ -1379,7 +1400,20 @@ async function acceptTrip() {
   currentTrip = data;
 
   subscribeToTripStatus(currentTrip.id);
-  showPickupScreen();
+
+  // REQUIRE FACE VERIFICATION before showing pickup details
+  requireDriverFaceVerification((verified) => {
+    if (verified) {
+      showPickupScreen();
+    } else {
+      // Driver failed verification — cancel the trip
+      toast('Face verification failed. Trip cancelled.');
+      sb.from('trips').update({ status: 'cancelled', driver_id: null }).eq('id', currentTrip.id);
+      currentTrip = null;
+      showScreen('screen-online');
+      subscribeToNewTrips();
+    }
+  });
 }
 
 function rejectTrip() {
@@ -1994,6 +2028,83 @@ function sanitize(str) {
     .substring(0, 500);
 }
 document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ═══════════════════════════════════════════
+// FACEIO — DRIVER FACE VERIFICATION
+// ═══════════════════════════════════════════
+const FACEIO_PUBLIC_ID = 'fioa2acd';
+let faceio = null;
+let driverFaceCallback = null;
+let driverFaceAttempts = 0;
+const MAX_FACE_ATTEMPTS = 10; // unlimited retries per session
+
+function initFaceIO() {
+  try {
+    faceio = new faceIO(FACEIO_PUBLIC_ID);
+  } catch(e) {
+    console.log('FaceIO init:', e);
+  }
+}
+
+function requireDriverFaceVerification(callback) {
+  driverFaceCallback = callback;
+  driverFaceAttempts = 0;
+  document.getElementById('driver-face-loading').style.display = 'none';
+  document.getElementById('driver-face-btn').style.display     = 'block';
+  document.getElementById('driver-face-attempts').style.display = 'none';
+  document.getElementById('face-modal').style.display = 'flex';
+}
+
+async function startDriverFaceVerification() {
+  if (!faceio) { initFaceIO(); }
+  if (!faceio) {
+    toast('Face verification unavailable. Proceeding without check.');
+    closeDriverFaceModal();
+    if (driverFaceCallback) driverFaceCallback(true);
+    return;
+  }
+
+  document.getElementById('driver-face-btn').style.display     = 'none';
+  document.getElementById('driver-face-loading').style.display = 'block';
+  document.getElementById('driver-face-attempts').style.display = 'none';
+
+  try {
+    const response = await faceio.authenticate({ locale: 'auto' });
+    driverFaceAttempts = 0;
+    closeDriverFaceModal();
+    if (driverFaceCallback) driverFaceCallback(true, response.facialId);
+
+  } catch(err) {
+    driverFaceAttempts++;
+    document.getElementById('driver-face-loading').style.display = 'none';
+    document.getElementById('driver-face-btn').style.display     = 'block';
+
+    const attemptsEl = document.getElementById('driver-face-attempts');
+    attemptsEl.style.display = 'block';
+    attemptsEl.textContent   = `Attempt ${driverFaceAttempts} — please try again`;
+
+    const errMap = {
+      PERMISSION_REFUSED:  'Camera permission denied. Please allow camera access.',
+      NO_FACES_DETECTED:   'No face detected. Look directly at the camera.',
+      UNRECOGNIZED_FACE:   'Face not recognised. Try again.',
+      MANY_FACES:          'Multiple faces detected. Only you should be visible.',
+      PAD_ATTACK:          'Spoofing detected. Use your real face.',
+      NETWORK_FAILURE:     'Network error. Check your connection.',
+    };
+    toast(errMap[err.code] || 'Verification failed. Please try again.');
+  }
+}
+
+function rejectAfterFaceFailure() {
+  closeDriverFaceModal();
+  rejectTrip();
+  toast('Trip rejected. Face verification was not completed.');
+}
+
+function closeDriverFaceModal() {
+  document.getElementById('face-modal').style.display = 'none';
+  driverFaceCallback = null;
+}
 
 // ═══════════════════════════════════════════
 // START

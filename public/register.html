@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>Via99 — Become a Driver</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.faceio.net/fio.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -137,7 +138,7 @@ a{color:var(--red);text-decoration:none;}
 <div class="progress-header" id="progress-header">
   <div class="progress-top">
     <img id="logo" src="" alt="Via99" class="logo-img"/>
-    <span class="step-label" id="step-label">Step 1 of 5</span>
+    <span class="step-label" id="step-label">Step 1 of 6</span>
   </div>
   <div class="progress-bar-wrap">
     <div class="progress-bar-fill" id="progress-fill" style="width:20%;"></div>
@@ -148,6 +149,7 @@ a{color:var(--red);text-decoration:none;}
     <div class="dot" id="dot-3"></div>
     <div class="dot" id="dot-4"></div>
     <div class="dot" id="dot-5"></div>
+    <div class="dot" id="dot-6"></div>
   </div>
 </div>
 
@@ -439,7 +441,47 @@ a{color:var(--red);text-decoration:none;}
 
   <div class="btn-row">
     <button class="btn btn-ghost" onclick="prevStep(5)">← Back</button>
-    <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit application ✓</button>
+    <button class="btn btn-primary" onclick="nextStep(5)">Continue →</button>
+  </div>
+</div>
+
+<!-- STEP 6: FACE VERIFICATION -->
+<div class="step" id="step-6">
+  <div class="step-hero">
+    <div class="step-eyebrow">Step 6 of 6</div>
+    <div class="step-title">Face verification</div>
+    <div class="step-sub">Set up your face ID so Via99 can verify your identity before every trip. This protects passengers and keeps the platform safe.</div>
+  </div>
+
+  <div style="text-align:center;padding:24px 0;">
+    <div style="font-size:64px;margin-bottom:16px;" id="face-status-icon">📷</div>
+    <p style="font-size:16px;font-weight:600;margin-bottom:8px;" id="face-status-title">Face ID not set up</p>
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px;" id="face-status-sub">Your face will be used to verify your identity before every trip. It is encrypted and cannot be reverse engineered.</p>
+
+    <div id="face-enrolled-badge" style="display:none;background:rgba(0,200,83,0.1);border:1px solid rgba(0,200,83,0.3);border-radius:14px;padding:16px;margin-bottom:20px;">
+      <p style="font-size:16px;font-weight:700;color:var(--green);">✅ Face ID enrolled</p>
+      <p style="font-size:13px;color:var(--muted);margin-top:4px;">Your face has been successfully registered.</p>
+    </div>
+
+    <div id="face-enroll-section">
+      <button class="btn btn-primary mb-12" id="face-enroll-btn" onclick="enrollDriverFace()">
+        📷 Set up Face ID
+      </button>
+      <div id="face-enroll-loading" style="display:none;margin-bottom:16px;">
+        <div class="spinner" style="border-top-color:var(--green);"></div>
+        <p style="font-size:13px;color:var(--muted);">Setting up Face ID...</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--surface2);border-radius:14px;padding:14px 16px;margin-bottom:20px;">
+    <p style="font-size:13px;font-weight:600;margin-bottom:6px;">Why we need this:</p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.7;">• Confirms you are the registered driver before each trip<br/>• Prevents account sharing or impersonation<br/>• Protects passengers from unregistered drivers<br/>• Your face data is encrypted — Via99 cannot see or access raw images</p>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="prevStep(6)">← Back</button>
+    <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()" disabled>Submit application ✓</button>
   </div>
 </div>
 
@@ -462,7 +504,7 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 let currentStep = 1;
-const totalSteps = 5;
+const totalSteps = 6;
 const uploadedFiles = {};
 
 // INJECT LOGO
@@ -598,6 +640,58 @@ function populateReview() {
 }
 
 // SUBMIT
+// ═══════════════════════════════════════════
+// FACEIO DRIVER ENROLLMENT
+// ═══════════════════════════════════════════
+const FACEIO_PUBLIC_ID = 'fioa2acd';
+let faceio = null;
+let driverFacialId = null;
+
+function initFaceIO() {
+  try { faceio = new faceIO(FACEIO_PUBLIC_ID); } catch(e) {}
+}
+
+async function enrollDriverFace() {
+  if (!faceio) { initFaceIO(); }
+  if (!faceio) { toast('Face ID unavailable. Please try again.'); return; }
+
+  document.getElementById('face-enroll-btn').style.display      = 'none';
+  document.getElementById('face-enroll-loading').style.display  = 'block';
+
+  try {
+    const response = await faceio.enroll({
+      locale:  'auto',
+      payload: { role: 'driver' }
+    });
+    driverFacialId = response.facialId;
+
+    // Show enrolled state
+    document.getElementById('face-enroll-section').style.display = 'none';
+    document.getElementById('face-enrolled-badge').style.display = 'block';
+    document.getElementById('face-status-icon').textContent      = '✅';
+    document.getElementById('face-status-title').textContent     = 'Face ID ready';
+    document.getElementById('face-status-sub').textContent       = 'You're all set. Submit your application.';
+    document.getElementById('submit-btn').disabled               = false;
+    toast('Face ID enrolled successfully! ✓');
+
+  } catch(err) {
+    document.getElementById('face-enroll-btn').style.display     = 'block';
+    document.getElementById('face-enroll-loading').style.display = 'none';
+
+    const errMap = {
+      PERMISSION_REFUSED:  'Camera permission denied. Please allow camera access.',
+      NO_FACES_DETECTED:   'No face detected. Look directly at the camera.',
+      MANY_FACES:          'Multiple faces detected. Only you should be visible.',
+      PAD_ATTACK:          'Spoofing detected. Please use your real face.',
+      NETWORK_FAILURE:     'Network error. Check your connection and try again.',
+    };
+    toast(errMap[err.code] || 'Enrollment failed. Please try again.');
+  }
+}
+
+// Init on page load
+document.addEventListener('DOMContentLoaded', initFaceIO);
+
 async function submitApplication() {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
@@ -629,6 +723,8 @@ async function submitApplication() {
 
   // 3. Create driver record — pending approval
   const { error: driverError } = await sb.from('drivers').insert({
+    face_id:          driverFacialId || null,
+    face_enrolled_at: driverFacialId ? new Date().toISOString() : null,
     id:               userId,
     vehicle_make:     document.getElementById('v-make').value.trim(),
     vehicle_model:    document.getElementById('v-model').value.trim(),
