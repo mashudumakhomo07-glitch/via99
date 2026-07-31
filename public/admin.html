@@ -180,6 +180,14 @@ input::placeholder{color:var(--muted);}
       <div class="nav-link" onclick="showPage('balances')" id="nl-balances">
         <span class="icon">💳</span> Driver Balances
       </div>
+      <div class="nav-link" onclick="showPage('applications')" id="nl-applications">
+        <span class="icon">📋</span> Applications
+        <span id="applications-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;display:none;">0</span>
+      </div>
+      <div class="nav-link" onclick="showPage('reports')" id="nl-reports">
+        <span class="icon">⚠️</span> Reports
+        <span id="reports-badge" style="margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;display:none;">0</span>
+      </div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-ghost" style="width:100%;font-size:13px;" onclick="adminLogout()">Sign out</button>
@@ -416,6 +424,64 @@ input::placeholder{color:var(--muted);}
       </div>
     </div>
 
+    <!-- APPLICATIONS PAGE -->
+    <div id="page-applications" class="tab-content">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📋 Driver Applications</div>
+          <div class="page-sub">Review and approve new driver applications</div>
+        </div>
+        <button class="btn btn-ghost" onclick="loadApplicationsPage()">↻ Refresh</button>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab active" onclick="filterApplications('pending')"  id="atab-pending">Pending</div>
+        <div class="page-tab"        onclick="filterApplications('approved')" id="atab-approved">Approved</div>
+        <div class="page-tab"        onclick="filterApplications('rejected')" id="atab-rejected">Rejected</div>
+        <div class="page-tab"        onclick="filterApplications('all')"      id="atab-all">All</div>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Phone</th><th>Vehicle</th><th>Category</th><th>Applied</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="applications-table">
+              <tr><td colspan="8" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS PAGE -->
+    <div id="page-reports" class="tab-content">
+      <div class="page-header">
+        <div>
+          <div class="page-title">⚠️ Driver Reports</div>
+          <div class="page-sub">Passenger complaints and incident reports</div>
+        </div>
+        <button class="btn btn-ghost" onclick="loadReportsPage()">↻ Refresh</button>
+      </div>
+      <div class="page-tabs">
+        <div class="page-tab active" onclick="filterReports('open')"     id="rtab-open">Open</div>
+        <div class="page-tab"        onclick="filterReports('investigating')" id="rtab-investigating">Investigating</div>
+        <div class="page-tab"        onclick="filterReports('resolved')" id="rtab-resolved">Resolved</div>
+        <div class="page-tab"        onclick="filterReports('all')"      id="rtab-all">All</div>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Driver</th><th>Category</th><th>Severity</th><th>Trip</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="reports-table">
+              <tr><td colspan="7" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- REVENUE PAGE -->
     <div id="page-revenue" class="tab-content">
       <div class="page-header">
@@ -463,6 +529,18 @@ input::placeholder{color:var(--muted);}
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- APPLICATION DETAIL MODAL -->
+<div class="modal-overlay" id="application-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <div class="modal-title" id="app-modal-name">Application details</div>
+      <button class="modal-close" onclick="closeAppModal()">×</button>
+    </div>
+    <div id="app-modal-content"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;" id="app-modal-actions"></div>
   </div>
 </div>
 
@@ -531,6 +609,8 @@ function showPage(page) {
   if (page === 'surge')      loadSurgePage();
   if (page === 'promos')     loadPromosPage();
   if (page === 'balances')   loadBalancesPage();
+  if (page === 'reports')      loadReportsPage();
+  if (page === 'applications') loadApplicationsPage();
 }
 
 // LOAD ALL DATA
@@ -550,6 +630,24 @@ async function loadAllData() {
   allDrivers = drivers || [];
   const pending = allDrivers.filter(d => (d.approval_status || 'pending') === 'pending');
   const revenue = (trips || []).reduce((s, t) => s + Number(t.via99_fee || 0), 0);
+
+  // Load open reports count for badge
+  const { data: openReports } = await sb.from('driver_reports').select('id').eq('status','open');
+  const openCount = (openReports || []).length;
+  const badge = document.getElementById('reports-badge');
+  if (badge && openCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = openCount;
+  }
+
+  // Load pending applications count
+  const { data: pendingApps } = await sb.from('driver_applications').select('id').eq('status','pending');
+  const appCount = (pendingApps || []).length;
+  const appBadge = document.getElementById('applications-badge');
+  if (appBadge && appCount > 0) {
+    appBadge.style.display = 'inline-block';
+    appBadge.textContent = appCount;
+  }
 
   document.getElementById('stat-drivers').textContent    = allDrivers.length;
   document.getElementById('stat-pending-badge').textContent = `${pending.length} pending approval`;
@@ -867,7 +965,19 @@ async function loadBalancesPage() {
 }
 
 async function reinstateDriver(id) {
-  await sb.from('drivers').update({ is_suspended: false, via99_balance: 0 }).eq('id', id);
+  // Check if blocked for zero tolerance
+  const { data: strikes } = await sb.from('driver_strikes')
+    .select('reason').eq('driver_id', id).like('reason', 'ZERO_TOLERANCE%');
+
+  if (strikes && strikes.length > 0) {
+    toast('⚠️ Cannot reinstate — driver was blocked for a zero tolerance violation.');
+    return;
+  }
+  await sb.from('drivers').update({
+    is_suspended:    false,
+    via99_balance:   0,
+    approval_status: 'approved'
+  }).eq('id', id);
   toast('Driver reinstated ✓');
   loadBalancesPage();
 }
@@ -880,9 +990,259 @@ async function clearBalance(id) {
 }
 
 // ═══ UPDATED showPage ═══
+// ═══ DRIVER REPORTS ═══
+let allReports = [];
+let reportFilter = 'open';
+
+async function loadReportsPage() {
+  const { data } = await sb.from('driver_reports')
+    .select('*, drivers(*, profiles(full_name, phone))')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  allReports = data || [];
+
+  // Update badge
+  const openCount = allReports.filter(r => r.status === 'open').length;
+  const badge = document.getElementById('reports-badge');
+  if (openCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = openCount;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  filterReports(reportFilter);
+}
+
+function filterReports(filter) {
+  reportFilter = filter;
+  document.querySelectorAll('#page-reports .page-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('rtab-' + filter).classList.add('active');
+
+  const filtered = filter === 'all' ? allReports
+    : allReports.filter(r => r.status === filter);
+
+  const el = document.getElementById('reports-table');
+  if (!filtered.length) {
+    el.innerHTML = `<tr><td colspan="7" class="empty">No ${filter} reports.</td></tr>`;
+    return;
+  }
+
+  const severityBadge = s => {
+    if (s === 'zero_tolerance') {
+      return `<span class="badge badge-red" style="background:#500;border-color:#900;font-size:10px;">🚨 ZERO TOLERANCE</span>`;
+    }
+    const map = {
+      critical: 'badge-red',
+      high:     'badge-red',
+      medium:   'badge-pending',
+      low:      'badge-muted'
+    };
+    return `<span class="badge ${map[s] || 'badge-muted'}">${s}</span>`;
+  };
+
+  const categoryLabel = c => {
+    if (c === 'romantic_advances') return '🚨 Romantic advances';
+    return c.replace(/_/g, ' ').replace(/./g, l => l.toUpperCase());
+  };
+
+  el.innerHTML = filtered.map(r => `
+    <tr>
+      <td class="fw-600">${r.drivers?.profiles?.full_name || '—'}</td>
+      <td>${categoryLabel(r.category)}</td>
+      <td>${severityBadge(r.severity)}</td>
+      <td style="font-size:12px;color:var(--muted);">${r.trip_id ? r.trip_id.substring(0,8) + '…' : '—'}</td>
+      <td style="font-size:12px;color:var(--muted);">${new Date(r.created_at).toLocaleDateString('en-ZA')}</td>
+      <td><span class="badge ${r.status === 'open' ? 'badge-pending' : r.status === 'resolved' ? 'badge-approved' : 'badge-muted'}">${r.status}</span></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap;">
+        ${r.status === 'open' ? `
+          <button class="btn btn-ghost btn-sm" onclick="updateReportStatus('${r.id}','investigating')">Investigate</button>
+          <button class="btn btn-approve btn-sm" onclick="updateReportStatus('${r.id}','resolved')">Resolve</button>
+          <button class="btn btn-reject btn-sm" onclick="updateReportStatus('${r.id}','dismissed')">Dismiss</button>
+          <button class="btn btn-reject btn-sm" onclick="issueManualStrike('${r.driver_id}','${r.id}','${r.category}')">Strike</button>
+        ` : r.status === 'investigating' ? `
+          <button class="btn btn-approve btn-sm" onclick="updateReportStatus('${r.id}','resolved')">Resolve</button>
+          <button class="btn btn-reject btn-sm" onclick="updateReportStatus('${r.id}','dismissed')">Dismiss</button>
+          <button class="btn btn-reject btn-sm" onclick="issueManualStrike('${r.driver_id}','${r.id}','${r.category}')">Strike</button>
+        ` : '—'}
+      </td>
+    </tr>`).join('');
+}
+
+async function updateReportStatus(reportId, status) {
+  const updates = { status };
+  if (status === 'resolved') updates.resolved_at = new Date().toISOString();
+  await sb.from('driver_reports').update(updates).eq('id', reportId);
+  toast(`Report marked as ${status}.`);
+  loadReportsPage();
+}
+
+async function issueManualStrike(driverId, reportId, reason) {
+  if (!confirm(`Issue a strike to this driver for "${reason.replace(/_/g,' ')}"? 3 strikes = automatic suspension.`)) return;
+
+  const { data: driver } = await sb.from('drivers')
+    .select('strike_count, is_suspended, profiles(full_name)').eq('id', driverId).single();
+  if (!driver) { toast('Driver not found.'); return; }
+
+  const newStrikes = (driver.strike_count || 0) + 1;
+  const shouldSuspend = newStrikes >= 3;
+
+  await sb.from('drivers').update({
+    strike_count:   newStrikes,
+    last_report_at: new Date().toISOString(),
+    is_suspended:   shouldSuspend || driver.is_suspended
+  }).eq('id', driverId);
+
+  await sb.from('driver_strikes').insert({
+    driver_id: driverId,
+    report_id: reportId,
+    reason,
+    issued_by: 'admin'
+  });
+
+  await sb.from('driver_reports').update({ status: 'investigating' }).eq('id', reportId);
+
+  if (shouldSuspend) {
+    toast(`Strike issued. Driver now has ${newStrikes} strikes — account SUSPENDED.`);
+  } else {
+    toast(`Strike issued. Driver now has ${newStrikes}/3 strikes.`);
+  }
+
+  loadReportsPage();
+  loadBalancesPage();
+}
+
+// ═══ DRIVER APPLICATIONS ═══
+let allApplications = [];
+let applicationFilter = 'pending';
+
+async function loadApplicationsPage() {
+  const { data } = await sb.from('driver_applications')
+    .select('*').order('applied_at', { ascending: false });
+  allApplications = data || [];
+
+  const pendingCount = allApplications.filter(a => a.status === 'pending').length;
+  const badge = document.getElementById('applications-badge');
+  if (pendingCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = pendingCount;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  filterApplications(applicationFilter);
+}
+
+function filterApplications(filter) {
+  applicationFilter = filter;
+  document.querySelectorAll('#page-applications .page-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('atab-' + filter).classList.add('active');
+
+  const filtered = filter === 'all' ? allApplications
+    : allApplications.filter(a => a.status === filter);
+
+  const el = document.getElementById('applications-table');
+  if (!filtered.length) {
+    el.innerHTML = `<tr><td colspan="8" class="empty">No ${filter} applications.</td></tr>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(a => `
+    <tr>
+      <td class="fw-600">${a.full_name || '—'}</td>
+      <td style="font-size:12px;color:var(--muted);">${a.email || '—'}</td>
+      <td>${a.phone || '—'}</td>
+      <td>${a.vehicle_colour || ''} ${a.vehicle_make || ''} ${a.vehicle_model || ''}</td>
+      <td style="text-transform:capitalize;">${a.ride_category || '—'}</td>
+      <td style="font-size:12px;color:var(--muted);">${a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-ZA') : '—'}</td>
+      <td><span class="badge ${a.status === 'pending' ? 'badge-pending' : a.status === 'approved' ? 'badge-approved' : 'badge-rejected'}">${a.status}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="viewApplication('${a.id}')">View</button>
+        ${a.status === 'pending' ? `
+          <button class="btn btn-approve btn-sm" style="margin-left:4px;" onclick="approveApplication('${a.id}')">✓</button>
+          <button class="btn btn-reject btn-sm" style="margin-left:4px;" onclick="rejectApplication('${a.id}')">✕</button>
+        ` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function viewApplication(id) {
+  const a = allApplications.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('app-modal-name').textContent = a.full_name || 'Application';
+  document.getElementById('app-modal-content').innerHTML = `
+    <p style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Personal</p>
+    <div class="info-row"><span class="info-label">Full name</span><span class="info-val">${a.full_name || '—'}</span></div>
+    <div class="info-row"><span class="info-label">ID number</span><span class="info-val">${a.id_number || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Phone</span><span class="info-val">${a.phone || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Email</span><span class="info-val">${a.email || '—'}</span></div>
+    <div class="info-row"><span class="info-label">City</span><span class="info-val">${a.city || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Date of birth</span><span class="info-val">${a.dob || '—'}</span></div>
+    <p style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 10px;">Vehicle</p>
+    <div class="info-row"><span class="info-label">Vehicle</span><span class="info-val">${a.vehicle_year || ''} ${a.vehicle_colour || ''} ${a.vehicle_make || ''} ${a.vehicle_model || ''}</span></div>
+    <div class="info-row"><span class="info-label">Plate</span><span class="info-val">${a.vehicle_plate || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Category</span><span class="info-val" style="text-transform:capitalize;">${a.ride_category || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Licence number</span><span class="info-val">${a.license_number || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Licence expiry</span><span class="info-val">${a.license_expiry || '—'}</span></div>
+    <div class="info-row"><span class="info-label">PrDP</span><span class="info-val">${a.prdp || '—'}</span></div>
+    <p style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 10px;">Documents</p>
+    <div class="doc-grid">
+      ${docImg(a.profile_photo, 'Profile photo')}
+      ${docImg(a.license_photo, "Driver's licence")}
+      ${docImg(a.registration_photo, 'Vehicle registration')}
+      ${docImg(a.roadworthy_photo, 'Roadworthy certificate')}
+    </div>
+    ${a.admin_notes ? `<p style="font-size:13px;color:var(--muted);margin-top:12px;"><strong>Admin notes:</strong> ${a.admin_notes}</p>` : ''}`;
+
+  document.getElementById('app-modal-actions').innerHTML = a.status === 'pending' ? `
+    <button class="btn btn-approve" style="flex:1;" onclick="approveApplication('${a.id}');closeAppModal()">✓ Approve</button>
+    <button class="btn btn-reject" style="flex:1;" onclick="rejectApplication('${a.id}');closeAppModal()">✕ Reject</button>` :
+    `<button class="btn btn-ghost" style="flex:1;" onclick="closeAppModal()">Close</button>`;
+
+  document.getElementById('application-modal').classList.add('active');
+}
+
+async function approveApplication(id) {
+  const a = allApplications.find(x => x.id === id);
+  if (!a) return;
+
+  // 1. Create Supabase auth user
+  const { data: authData, error: authError } = await sb.auth.admin?.createUser({
+    email: a.email,
+    password: a.password_hint || 'Via99Driver123',
+    email_confirm: true
+  }).catch(() => ({ data: null, error: { message: 'Admin API not available' } }));
+
+  // If admin API not available, just mark as approved and instruct manual creation
+  await sb.from('driver_applications').update({
+    status: 'approved',
+    reviewed_at: new Date().toISOString()
+  }).eq('id', id);
+
+  toast(`✓ Application approved. ${authError ? 'Create auth account manually in Supabase → Auth → Users.' : 'Driver account created.'}`);
+  loadApplicationsPage();
+}
+
+async function rejectApplication(id) {
+  if (!confirm('Reject this application?')) return;
+  await sb.from('driver_applications').update({
+    status: 'rejected',
+    reviewed_at: new Date().toISOString()
+  }).eq('id', id);
+  toast('Application rejected.');
+  loadApplicationsPage();
+}
+
+function closeAppModal() {
+  document.getElementById('application-modal').classList.remove('active');
+}
+
 // CLOSE MODAL ON OVERLAY CLICK
 document.getElementById('driver-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('driver-modal')) closeModal();
+});
+document.getElementById('application-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('application-modal')) closeAppModal();
 });
 
 // CHECK SESSION ON LOAD
