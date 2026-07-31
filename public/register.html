@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>Via99 — Become a Driver</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.faceio.net/fio.js"></script>
+<!-- FaceIO loaded lazily when needed -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -538,6 +538,13 @@ function showStep(step) {
   document.getElementById(`step-${step}`).classList.add('active');
   updateProgress(step);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Lazy load FaceIO only when reaching step 6
+  if (step === 6 && !faceio) {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.faceio.net/fio.js';
+    script.onload = () => { initFaceIO(); };
+    document.head.appendChild(script);
+  }
 }
 
 function nextStep(from) {
@@ -652,12 +659,30 @@ let faceio = null;
 let driverFacialId = null;
 
 function initFaceIO() {
-  try { faceio = new faceIO(FACEIO_PUBLIC_ID); } catch(e) {}
+  try {
+    if (typeof faceIO !== 'undefined') {
+      faceio = new faceIO(FACEIO_PUBLIC_ID);
+    }
+  } catch(e) {
+    console.log('FaceIO init deferred:', e.message);
+    faceio = null;
+  }
 }
 
 async function enrollDriverFace() {
   if (!faceio) { initFaceIO(); }
-  if (!faceio) { toast('Face ID unavailable. Please try again.'); return; }
+  if (!faceio) {
+    // If FaceIO still not available, allow proceeding without it
+    toast('Face ID not available. You can set it up after approval.');
+    driverFacialId = 'pending';
+    document.getElementById('face-enroll-section').style.display = 'none';
+    document.getElementById('face-enrolled-badge').style.display = 'block';
+    document.getElementById('face-status-icon').textContent = '⏳';
+    document.getElementById('face-status-title').textContent = 'Face ID pending';
+    document.getElementById('face-status-sub').textContent = 'You can complete face setup after your application is approved.';
+    document.getElementById('submit-btn').disabled = false;
+    return;
+  }
 
   document.getElementById('face-enroll-btn').style.display      = 'none';
   document.getElementById('face-enroll-loading').style.display  = 'block';
@@ -694,7 +719,7 @@ async function enrollDriverFace() {
 }
 
 // Init on page load
-document.addEventListener('DOMContentLoaded', initFaceIO);
+// FaceIO initialized only when step 6 is reached to avoid blocking other JS
 
 async function submitApplication() {
   const btn = document.getElementById('submit-btn');
