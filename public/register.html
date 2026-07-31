@@ -113,7 +113,7 @@ textarea{resize:none;min-height:80px;line-height:1.5;}
 .status-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(232,38,26,0.1);border:1px solid rgba(232,38,26,0.3);color:var(--red);padding:10px 20px;border-radius:100px;font-size:14px;font-weight:600;margin-bottom:24px;}
 
 /* TOAST */
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:14px;padding:10px 20px;border-radius:100px;z-index:999;opacity:0;transition:opacity 0.3s;white-space:nowrap;pointer-events:none;}
+#toast{position:fixed;bottom:40px;left:20px;right:20px;transform:none;background:#E8261A;border:none;color:#fff;font-size:14px;font-weight:600;padding:14px 20px;border-radius:14px;z-index:9999;opacity:0;transition:opacity 0.25s;pointer-events:none;text-align:center;}
 #toast.show{opacity:1;}
 
 /* MISC */
@@ -156,7 +156,7 @@ a{color:var(--red);text-decoration:none;}
 <!-- ═══════ STEP 1 — PERSONAL INFO ═══════ -->
 <div class="step active" id="step-1">
   <div class="step-hero">
-    <div class="step-eyebrow">Step 1 of 5</div>
+    <div class="step-eyebrow">Step 1 of 6</div>
     <div class="step-title">Personal details</div>
     <div class="step-sub">Tell us about yourself. All information is kept confidential.</div>
   </div>
@@ -216,7 +216,7 @@ a{color:var(--red);text-decoration:none;}
 <!-- ═══════ STEP 2 — VEHICLE INFO ═══════ -->
 <div class="step" id="step-2">
   <div class="step-hero">
-    <div class="step-eyebrow">Step 2 of 5</div>
+    <div class="step-eyebrow">Step 2 of 6</div>
     <div class="step-title">Your vehicle</div>
     <div class="step-sub">Your vehicle must be 2015 or newer, roadworthy, and insured.</div>
   </div>
@@ -280,7 +280,7 @@ a{color:var(--red);text-decoration:none;}
 <!-- ═══════ STEP 3 — DOCUMENTS ═══════ -->
 <div class="step" id="step-3">
   <div class="step-hero">
-    <div class="step-eyebrow">Step 3 of 5</div>
+    <div class="step-eyebrow">Step 3 of 6</div>
     <div class="step-title">Upload documents</div>
     <div class="step-sub">Upload clear photos of each document. JPG or PNG, max 5MB each.</div>
   </div>
@@ -340,7 +340,7 @@ a{color:var(--red);text-decoration:none;}
 <!-- ═══════ STEP 4 — COMMISSION & TERMS ═══════ -->
 <div class="step" id="step-4">
   <div class="step-hero">
-    <div class="step-eyebrow">Step 4 of 5</div>
+    <div class="step-eyebrow">Step 4 of 6</div>
     <div class="step-title">Commission & terms</div>
     <div class="step-sub">Understand how you earn and what you agree to.</div>
   </div>
@@ -514,9 +514,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logo-success').src = 'data:image/png;base64,' + logo;
 });
 
-function toast(msg, duration = 3000) {
+function toast(msg, duration = 4000) {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = msg;
+  t.classList.remove('show');
+  // Force reflow
+  void t.offsetWidth;
+  t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
 }
 
@@ -538,7 +542,7 @@ function showStep(step) {
 
 function nextStep(from) {
   if (!validateStep(from)) return;
-  if (from === 5) return;
+  if (from === 6) return;
   if (from === 4) populateReview();
   currentStep = from + 1;
   showStep(currentStep);
@@ -551,20 +555,29 @@ function prevStep(from) {
 
 function validateStep(step) {
   if (step === 1) {
-    const name = document.getElementById('full-name').value.trim();
-    const id   = document.getElementById('id-number').value.trim();
+    const name  = document.getElementById('full-name').value.trim();
+    const id    = document.getElementById('id-number').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const email = document.getElementById('email').value.trim();
     const city  = document.getElementById('city').value;
     const pass  = document.getElementById('password').value;
     const conf  = document.getElementById('confirm-password').value;
-    if (!name)             { toast('Enter your full name.'); return false; }
-    if (id.length !== 13 || isNaN(id)) { toast('Enter a valid 13-digit SA ID number.'); return false; }
-    if (!phone)            { toast('Enter your phone number.'); return false; }
-    if (!email || !email.includes('@')) { toast('Enter a valid email address.'); return false; }
-    if (!city)             { toast('Select your city.'); return false; }
-    if (pass.length < 8)   { toast('Password must be at least 8 characters.'); return false; }
-    if (pass !== conf)     { toast('Passwords do not match.'); return false; }
+    if (!name)  { toast('Enter your full name.'); return false; }
+    if (!id || id.length !== 13 || !/^\d{13}$/.test(id)) {
+      toast('Enter a valid 13-digit SA ID number (numbers only).');
+      return false;
+    }
+    if (!phone) { toast('Enter your phone number.'); return false; }
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      toast('Enter a valid email address.');
+      return false;
+    }
+    if (!city)  { toast('Select your city.'); return false; }
+    if (!pass || pass.length < 8) {
+      toast('Password must be at least 8 characters.');
+      return false;
+    }
+    if (pass !== conf) { toast('Passwords do not match.'); return false; }
     return true;
   }
   if (step === 2) {
