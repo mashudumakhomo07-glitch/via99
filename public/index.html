@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<meta name="robots" content="noindex, nofollow"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Via99</title>
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
@@ -898,6 +900,7 @@ function formatExpiry(el){
 // BOOK
 async function bookRide(){
   if(!currentUser){toast('Please sign in to book a ride.');switchTab('profile');return;}
+  if(!checkRateLimit()){return;}
   if(selectedPayment==='card'){
     const num=document.getElementById('card-number').value.replace(/\s/g,'');
     const exp=document.getElementById('card-expiry').value;
@@ -1528,6 +1531,41 @@ async function loadNotifications() {
     .eq('read', false).order('created_at', { ascending: false });
   return data || [];
 }
+
+// ═══════════════════════════════════════════
+// SECURITY — INPUT SANITIZATION + RATE LIMITING
+// ═══════════════════════════════════════════
+function sanitize(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    .trim()
+    .substring(0, 500); // max length
+}
+
+// Rate limiting — max 3 bookings per minute per user
+const bookingTimestamps = [];
+function checkRateLimit() {
+  const now = Date.now();
+  const oneMinuteAgo = now - 60000;
+  // Remove timestamps older than 1 minute
+  while (bookingTimestamps.length && bookingTimestamps[0] < oneMinuteAgo) {
+    bookingTimestamps.shift();
+  }
+  if (bookingTimestamps.length >= 3) {
+    toast('Too many bookings. Please wait a moment.');
+    return false;
+  }
+  bookingTimestamps.push(now);
+  return true;
+}
+
+// Prevent right-click source viewing on mobile
+document.addEventListener('contextmenu', e => e.preventDefault());
 
 // BOOT
 document.getElementById('bottom-nav').style.display='flex';

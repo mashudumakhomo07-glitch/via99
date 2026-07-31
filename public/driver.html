@@ -1981,6 +1981,21 @@ function sendDriverQuickMsg(msg) {
 }
 
 // ═══════════════════════════════════════════
+// SECURITY
+// ═══════════════════════════════════════════
+function sanitize(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .trim()
+    .substring(0, 500);
+}
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ═══════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════
 init();
