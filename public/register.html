@@ -478,5 +478,27 @@ async function submitApplication() {
   document.getElementById('success-screen').classList.add('active');
 }
 </script>
+<script>
+// PRE-FILL TEST DATA — remove before production
+window.addEventListener('load', () => {
+  document.getElementById('full-name').value     = 'Test Driver';
+  document.getElementById('id-number').value     = '9901156351082';
+  document.getElementById('phone').value         = '0821234567';
+  document.getElementById('dob').value           = '15/01/1999';
+  document.getElementById('email').value         = 'testdriver' + Date.now() + '@via99.co.za';
+  document.getElementById('city').value          = 'Johannesburg';
+  document.getElementById('password').value      = 'Via99Test123';
+  document.getElementById('confirm-password').value = 'Via99Test123';
+  document.getElementById('v-make').value        = 'Toyota';
+  document.getElementById('v-model').value       = 'Corolla';
+  document.getElementById('v-year').value        = '2020';
+  document.getElementById('v-colour').value      = 'White';
+  document.getElementById('v-plate').value       = 'GP 123-456';
+  document.getElementById('v-category').value    = 'economy';
+  document.getElementById('license-number').value = 'DL123456789';
+  document.getElementById('license-expiry').value = '12/2028';
+  document.getElementById('prdp').value          = 'yes';
+});
+</script>
 </body>
 </html>
