@@ -396,82 +396,39 @@ async function submitApplication() {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
-  const email = document.getElementById('email').value.trim();
-  const pass  = document.getElementById('password').value;
-  const name  = document.getElementById('full-name').value.trim();
-  const phone = document.getElementById('phone').value.trim();
-
-  // 1. Create auth user
-  const { data: signupData, error: authError } = await sb.auth.signUp({ email, password: pass });
-  if (authError) {
-    console.error('Auth error:', authError);
-    toast(authError.message.includes('already') ? 'Email already registered. Try signing in.' : authError.message);
-    btn.disabled = false; btn.textContent = 'Submit application ✓';
-    return;
-  }
-  if (!signupData.user) {
-    toast('Account creation failed. Please try again.');
-    btn.disabled = false; btn.textContent = 'Submit application ✓';
-    return;
-  }
-
-  // 2. Sign in immediately to establish session
-  const { data: signinData, error: signinError } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (signinError) {
-    console.error('Sign in error:', signinError);
-    toast('Sign in after signup failed: ' + signinError.message);
-    btn.disabled = false; btn.textContent = 'Submit application ✓';
-    return;
-  }
-  const userId = signinData.user.id;
-
-  // 3. Create profile
-  const { error: profileError } = await sb.from('profiles').insert({
-    id: userId, full_name: name, phone, role: 'driver', wallet_balance: 0
-  });
-  if (profileError) {
-    console.error('Profile error:', profileError);
-    toast('Profile error: ' + profileError.message);
-    btn.disabled = false; btn.textContent = 'Submit application ✓';
-    return;
-  }
-
-  // 4. Create driver record
-  const { error: driverError } = await sb.from('drivers').insert({
-    id:                 userId,
+  // Save application directly — no auth needed
+  // Admin creates the account after approval
+  const { error } = await sb.from('driver_applications').insert({
+    full_name:          document.getElementById('full-name').value.trim(),
+    id_number:          document.getElementById('id-number').value.trim(),
+    phone:              document.getElementById('phone').value.trim(),
+    dob:                document.getElementById('dob').value.trim(),
+    email:              document.getElementById('email').value.trim(),
+    password_hint:      document.getElementById('password').value,
+    city:               document.getElementById('city').value,
     vehicle_make:       document.getElementById('v-make').value.trim(),
     vehicle_model:      document.getElementById('v-model').value.trim(),
+    vehicle_year:       document.getElementById('v-year').value.trim(),
     vehicle_colour:     document.getElementById('v-colour').value.trim(),
     vehicle_plate:      document.getElementById('v-plate').value.trim().toUpperCase(),
-    vehicle_year:       document.getElementById('v-year').value.trim(),
-    id_number:          document.getElementById('id-number').value.trim(),
+    ride_category:      document.getElementById('v-category').value,
     license_number:     document.getElementById('license-number').value.trim(),
     license_expiry:     document.getElementById('license-expiry').value.trim(),
-    rating:             5.0,
-    acceptance_rate:    100,
-    total_trips:        0,
-    total_earnings:     0,
-    is_online:          false,
-    approval_status:    'pending',
-    via99_balance:      0,
-    credit_limit:       50,
-    is_suspended:       false,
+    prdp:               document.getElementById('prdp').value,
     profile_photo:      uploadedFiles['file-profile']    || null,
     license_photo:      uploadedFiles['file-license']    || null,
     registration_photo: uploadedFiles['file-reg']        || null,
     roadworthy_photo:   uploadedFiles['file-roadworthy'] || null,
+    status:             'pending',
     applied_at:         new Date().toISOString()
   });
 
-  if (driverError) {
-    toast('Error: ' + (driverError.message || JSON.stringify(driverError)));
-    console.error('Driver insert error:', driverError);
+  if (error) {
+    console.error('Submission error:', error);
+    toast('Submission failed: ' + error.message);
     btn.disabled = false; btn.textContent = 'Submit application ✓';
     return;
   }
-
-  // Sign out — can't use app until approved
-  await sb.auth.signOut();
 
   // Show success
   document.getElementById('form-page').style.display = 'none';
