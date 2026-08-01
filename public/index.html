@@ -949,7 +949,8 @@ async function bookRide(){
 
   // Check if in dangerous zone — require face verification
   const dangerZone = isInDangerousZone(userLat, userLng);
-  if (dangerZone) {
+  if (dangerZone && currentProfile?.face_id) {
+    // Only require face verification if passenger has enrolled their face
     requireFaceVerification('unsafe_area', async (verified) => {
       if (!verified) {
         toast('Face verification required to book in ' + dangerZone.name + '.');
@@ -1350,10 +1351,11 @@ async function signUp(){
   document.getElementById('bottom-nav').style.display='flex';
   switchTab('home');
 
-  // Prompt face enrollment after signup
+  // Prompt face enrollment after signup — optional, can skip
   setTimeout(() => {
     requireFaceVerification('signup', (success, facialId) => {
-      if (success) toast('Face verification set up successfully! ✓');
+      if (success) toast('Face ID set up successfully! ✓');
+      else toast('Face ID skipped. You can set it up later in your profile.');
     });
   }, 1500);
 }
@@ -1726,6 +1728,18 @@ async function startFaceVerification() {
 function cancelFaceVerification() {
   closeFaceModal();
   if (faceVerificationCallback) faceVerificationCallback(false, null);
+}
+
+function skipFaceVerification() {
+  closeFaceModal();
+  // For signup context — skip is fine, proceed normally
+  if (faceVerificationContext === 'signup') {
+    if (faceVerificationCallback) faceVerificationCallback(false, null);
+  } else {
+    // For unsafe area — warn but allow
+    toast('Face verification skipped. Stay safe.');
+    if (faceVerificationCallback) faceVerificationCallback(true, null);
+  }
 }
 
 function closeFaceModal() {
@@ -2175,7 +2189,7 @@ init();
     <button class="btn btn-primary mb-12" id="face-modal-btn" onclick="startFaceVerification()">
       📷 Start face verification
     </button>
-    <button class="btn btn-ghost" onclick="cancelFaceVerification()">Cancel</button>
+    <button class="btn btn-ghost" id="face-skip-btn" onclick="skipFaceVerification()">Skip for now</button>
     <p style="font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;">Your face data is encrypted and stored securely. Via99 uses this only to verify your identity.</p>
   </div>
 </div>
