@@ -1278,23 +1278,28 @@ function subscribeToNewTrips() {
   unsubscribeNewTrips();
   if (!isOnline || !currentUser) return;
 
+  // Note: Supabase Realtime INSERT filters on non-PK columns don't work
+  // So we subscribe to ALL inserts and filter in callback
   tripListenerSub = sb
     .channel('new-trips-' + currentUser.id)
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
-      table: 'trips',
-      filter: 'status=eq.requested'
+      table: 'trips'
     }, payload => {
-      if (!isOnline || currentTrip) return; // already on a trip
+      if (!isOnline || currentTrip) return;
       const trip = payload.new;
-      if (trip.driver_id !== null) return;  // already claimed
+      // Filter in callback instead
+      if (trip.status !== 'requested') return;
+      if (trip.driver_id !== null) return;
       unsubscribeNewTrips();
       currentTrip = trip;
       notifyDriver("Via99 — New trip request!", `Pickup: ${(trip.pickup_address||"").split(",")[0]} → ${(trip.dest_address||"").split(",")[0]}`);
       showRequestScreen(trip);
     })
-    .subscribe();
+    .subscribe(status => {
+      console.log('Via99 Realtime status:', status);
+    });
 }
 
 function unsubscribeNewTrips() {
