@@ -871,6 +871,21 @@
       <div class="stat-box"><div class="stat-val" id="dprofile-acceptance">100%</div><div class="stat-label">Acceptance</div></div>
     </div>
     <p class="label">Account</p>
+    <!-- FACE ID ENROLLMENT -->
+    <div class="card" style="margin-bottom:10px;">
+      <div class="row mb-8">
+        <span class="fw-600">🔐 Face ID</span>
+        <span id="face-id-status" class="badge badge-muted">Not enrolled</span>
+      </div>
+      <p class="fs-12 color-muted" style="margin-bottom:10px;">Required to verify your identity before each trip.</p>
+      <button class="btn btn-success" id="face-enroll-profile-btn" onclick="enrollDriverFaceFromProfile()" style="padding:12px;">
+        📷 Enroll Face ID
+      </button>
+      <div id="face-enroll-profile-loading" style="display:none;text-align:center;padding:10px;">
+        <div class="spinner" style="border-top-color:var(--green);width:28px;height:28px;margin:0 auto 8px;"></div>
+        <p class="fs-12 color-muted">Setting up Face ID...</p>
+      </div>
+    </div>
     <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">🔔 Notifications</span><span class="color-muted">→</span></div></div>
     <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">❓ Help & Support</span><span class="color-muted">→</span></div></div>
     <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">📄 Documents</span><span class="color-muted">→</span></div></div>
@@ -893,6 +908,7 @@
     <button class="btn btn-success mb-12" id="driver-face-btn" onclick="startDriverFaceVerification()">
       📷 Verify face
     </button>
+    <button class="btn btn-ghost mb-12" onclick="skipDriverFaceVerification()">Skip for now</button>
     <button class="btn btn-danger" onclick="rejectAfterFaceFailure()">Reject trip instead</button>
     <p style="font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;">You must verify your identity before seeing passenger pickup details.</p>
   </div>
@@ -1184,6 +1200,34 @@ async function toggleOnline() {
   }
 }
 
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('Wake lock active');
+    }
+  } catch(e) {
+    console.log('Wake lock failed:', e);
+  }
+}
+
+async function releaseWakeLock() {
+  try {
+    if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch(e) {}
+}
+
+// Re-request wake lock if page becomes visible again
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && isOnline) {
+    await requestWakeLock();
+    // Re-subscribe to trips in case polling stopped
+    subscribeToNewTrips();
+  }
+});
+
 async function goOnline() {
   // Check suspension before going online
   if (driverRecord && driverRecord.is_suspended) {
@@ -1191,6 +1235,7 @@ async function goOnline() {
     return;
   }
   isOnline = true;
+  await requestWakeLock();
   await sb.from('drivers').update({ is_online: true }).eq('id', currentUser.id);
   updateToggleUI();
   document.getElementById('driver-bottom-nav').style.display = 'none';
@@ -1212,6 +1257,7 @@ async function goOffline() {
 
 async function goOfflineSilent() {
   isOnline = false;
+  await releaseWakeLock();
   unsubscribeNewTrips();
   unsubscribeTripStatus();
   stopLocationBroadcast();
@@ -1281,7 +1327,7 @@ function subscribeToNewTrips() {
   unsubscribeNewTrips();
   if (!isOnline || !currentUser) return;
   // Poll every 3 seconds for new requested trips
-  tripPollInterval = setInterval(pollForNewTrip, 3000);
+  tripPollInterval = setInterval(pollForNewTrip, 2000);
 }
 
 async function pollForNewTrip() {
@@ -1844,15 +1890,26 @@ async function loadPayoutTab() {
 
 function loadProfileTab() {
   if (!driverProfile || !driverRecord) return;
-  document.getElementById('dprofile-name').textContent = driverProfile.full_name || 'Driver';
-  document.getElementById('dprofile-email').textContent = currentUser?.email || '—';
-  document.getElementById('dprofile-phone').textContent = driverProfile.phone || '—';
-  document.getElementById('dprofile-car').textContent = `${driverRecord.vehicle_make || ''} ${driverRecord.vehicle_model || ''}`.trim();
-  document.getElementById('dprofile-colour').textContent = driverRecord.vehicle_colour || '—';
-  document.getElementById('dprofile-plate').textContent = driverRecord.vehicle_plate || '—';
-  document.getElementById('dprofile-trips').textContent = driverRecord.total_trips || 0;
-  document.getElementById('dprofile-rating').textContent = `${Number(driverRecord.rating || 5).toFixed(1)} ⭐`;
+  document.getElementById('dprofile-name').textContent    = driverProfile.full_name || 'Driver';
+  document.getElementById('dprofile-email').textContent   = currentUser?.email || '—';
+  document.getElementById('dprofile-phone').textContent   = driverProfile.phone || '—';
+  document.getElementById('dprofile-car').textContent     = `${driverRecord.vehicle_make || ''} ${driverRecord.vehicle_model || ''}`.trim();
+  document.getElementById('dprofile-colour').textContent  = driverRecord.vehicle_colour || '—';
+  document.getElementById('dprofile-plate').textContent   = driverRecord.vehicle_plate || '—';
+  document.getElementById('dprofile-trips').textContent   = driverRecord.total_trips || 0;
+  document.getElementById('dprofile-rating').textContent  = `${Number(driverRecord.rating || 5).toFixed(1)} ⭐`;
   document.getElementById('dprofile-acceptance').textContent = `${driverRecord.acceptance_rate || 100}%`;
+
+  // Face ID status
+  if (driverRecord.face_id) {
+    document.getElementById('face-id-status').textContent  = 'Enrolled ✓';
+    document.getElementById('face-id-status').className    = 'badge badge-green';
+    document.getElementById('face-enroll-profile-btn').textContent = '✅ Face ID enrolled';
+    document.getElementById('face-enroll-profile-btn').disabled    = true;
+  } else {
+    document.getElementById('face-id-status').textContent = 'Not enrolled';
+    document.getElementById('face-id-status').className   = 'badge badge-red';
+  }
 }
 
 function selectDriverPayoutMethod(method) {
@@ -2105,6 +2162,12 @@ async function startDriverFaceVerification() {
   }
 }
 
+function skipDriverFaceVerification() {
+  closeDriverFaceModal();
+  toast('Face verification skipped. Please enroll your face in profile settings.');
+  showPickupScreen();
+}
+
 function rejectAfterFaceFailure() {
   closeDriverFaceModal();
   rejectTrip();
@@ -2114,6 +2177,54 @@ function rejectAfterFaceFailure() {
 function closeDriverFaceModal() {
   document.getElementById('face-modal').style.display = 'none';
   driverFaceCallback = null;
+}
+
+// ═══════════════════════════════════════════
+// FACE ENROLLMENT FROM PROFILE
+// ═══════════════════════════════════════════
+async function enrollDriverFaceFromProfile() {
+  if (!faceio) { initFaceIO(); }
+  if (!faceio) { toast('Face ID unavailable. Check your connection.'); return; }
+
+  document.getElementById('face-enroll-profile-btn').style.display     = 'none';
+  document.getElementById('face-enroll-profile-loading').style.display = 'block';
+
+  try {
+    const response = await faceio.enroll({
+      locale:  'auto',
+      payload: { userId: currentUser.id, role: 'driver' }
+    });
+
+    // Save facial ID to driver record
+    await sb.from('drivers').update({
+      face_id:          response.facialId,
+      face_enrolled_at: new Date().toISOString()
+    }).eq('id', currentUser.id);
+
+    if (driverRecord) driverRecord.face_id = response.facialId;
+
+    document.getElementById('face-enroll-profile-btn').style.display     = 'block';
+    document.getElementById('face-enroll-profile-loading').style.display = 'none';
+    document.getElementById('face-enroll-profile-btn').textContent       = '✅ Face ID enrolled';
+    document.getElementById('face-enroll-profile-btn').disabled          = true;
+    document.getElementById('face-id-status').textContent                = 'Enrolled';
+    document.getElementById('face-id-status').className                  = 'badge badge-green';
+    toast('Face ID enrolled successfully! ✓');
+
+  } catch(err) {
+    document.getElementById('face-enroll-profile-btn').style.display     = 'block';
+    document.getElementById('face-enroll-profile-loading').style.display = 'none';
+
+    const errMap = {
+      PERMISSION_REFUSED:  'Camera permission denied.',
+      NO_FACES_DETECTED:   'No face detected. Look at the camera.',
+      MANY_FACES:          'Multiple faces detected.',
+      PAD_ATTACK:          'Spoofing detected.',
+      NETWORK_FAILURE:     'Network error. Try again.',
+      FACE_DUPLICATION:    'Face already enrolled on another account.',
+    };
+    toast(errMap[err.code] || 'Enrollment failed: ' + (err.message || err.code));
+  }
 }
 
 // ═══════════════════════════════════════════
