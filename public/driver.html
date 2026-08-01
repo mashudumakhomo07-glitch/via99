@@ -881,7 +881,7 @@
       <p class="fs-12 color-muted" style="margin-bottom:10px;">Take a selfie to verify your identity before each trip.</p>
       <!-- Camera preview -->
       <div id="face-camera-wrap" style="display:none;margin-bottom:10px;">
-        <video id="face-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;max-height:240px;object-fit:cover;"></video>
+        <video id="face-video" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:280px;object-fit:cover;transform:scaleX(-1);"></video>
         <canvas id="face-canvas" style="display:none;"></canvas>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-success" style="flex:1;" onclick="captureDriverSelfie()">📸 Take selfie</button>
@@ -2200,24 +2200,51 @@ function closeDriverFaceModal() {
 // ═══════════════════════════════════════════
 async function openFaceCamera() {
   try {
-    faceStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    // Mobile-friendly camera constraints
+    const constraints = {
+      video: {
+        facingMode: 'user',
+        width:  { ideal: 640 },
+        height: { ideal: 480 }
+      },
+      audio: false
+    };
+    faceStream = await navigator.mediaDevices.getUserMedia(constraints);
     const video = document.getElementById('face-video');
-    video.srcObject = faceStream;
+    video.srcObject  = faceStream;
+    video.setAttribute('playsinline', true); // iOS requirement
+    video.setAttribute('muted', true);
+    video.muted = true;
+    await video.play();
     document.getElementById('face-camera-wrap').style.display  = 'block';
     document.getElementById('face-preview-wrap').style.display = 'none';
     document.getElementById('face-enroll-profile-btn').style.display = 'none';
   } catch(e) {
-    toast('Camera access denied. Please allow camera access in your browser settings.');
+    console.error('Camera error:', e);
+    if (e.name === 'NotAllowedError') {
+      toast('Camera permission denied. Go to browser settings and allow camera for this site.');
+    } else if (e.name === 'NotFoundError') {
+      toast('No camera found on this device.');
+    } else {
+      toast('Camera error: ' + e.message);
+    }
   }
 }
 
 function captureDriverSelfie() {
   const video  = document.getElementById('face-video');
   const canvas = document.getElementById('face-canvas');
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  capturedFaceData = canvas.toDataURL('image/jpeg', 0.8);
+  // Use actual video dimensions or fallback
+  const w = video.videoWidth  || 640;
+  const h = video.videoHeight || 480;
+  canvas.width  = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  // Mirror the image (selfie camera)
+  ctx.translate(w, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, w, h);
+  capturedFaceData = canvas.toDataURL('image/jpeg', 0.85);
 
   // Show preview
   document.getElementById('face-preview-img').src             = capturedFaceData;
@@ -2251,9 +2278,14 @@ async function saveFaceSelfie() {
   btn.textContent  = 'Processing face…';
 
   // Load face-api models first
+  btn.textContent = 'Loading AI models…';
   const modelsLoaded = await loadFaceAPI();
+  btn.textContent = 'Processing face…';
   if (!modelsLoaded) {
-    toast('Face detection unavailable. Saving photo only.');
+    toast('Face detection unavailable. Please check your connection.');
+    btn.disabled = false;
+    btn.textContent = '📷 Take selfie for Face ID';
+    return;
   }
 
   try {
