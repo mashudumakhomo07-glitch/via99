@@ -7,7 +7,8 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- FaceIO loaded lazily when needed -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -877,14 +878,27 @@
         <span class="fw-600">🔐 Face ID</span>
         <span id="face-id-status" class="badge badge-muted">Not enrolled</span>
       </div>
-      <p class="fs-12 color-muted" style="margin-bottom:10px;">Required to verify your identity before each trip.</p>
-      <button class="btn btn-success" id="face-enroll-profile-btn" onclick="enrollDriverFaceFromProfile()" style="padding:12px;">
-        📷 Enroll Face ID
-      </button>
-      <div id="face-enroll-profile-loading" style="display:none;text-align:center;padding:10px;">
-        <div class="spinner" style="border-top-color:var(--green);width:28px;height:28px;margin:0 auto 8px;"></div>
-        <p class="fs-12 color-muted">Setting up Face ID...</p>
+      <p class="fs-12 color-muted" style="margin-bottom:10px;">Take a selfie to verify your identity before each trip.</p>
+      <!-- Camera preview -->
+      <div id="face-camera-wrap" style="display:none;margin-bottom:10px;">
+        <video id="face-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;max-height:240px;object-fit:cover;"></video>
+        <canvas id="face-canvas" style="display:none;"></canvas>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-success" style="flex:1;" onclick="captureDriverSelfie()">📸 Take selfie</button>
+          <button class="btn btn-danger" style="flex:1;" onclick="closeFaceCamera()">Cancel</button>
+        </div>
       </div>
+      <!-- Preview of captured photo -->
+      <div id="face-preview-wrap" style="display:none;margin-bottom:10px;">
+        <img id="face-preview-img" style="width:100%;border-radius:12px;max-height:200px;object-fit:cover;"/>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-success" style="flex:1;" onclick="saveFaceSelfie()">✓ Use this photo</button>
+          <button class="btn btn-ghost" style="flex:1;" onclick="retakeFaceSelfie()">Retake</button>
+        </div>
+      </div>
+      <button class="btn btn-success" id="face-enroll-profile-btn" onclick="openFaceCamera()" style="padding:12px;">
+        📷 Take selfie for Face ID
+      </button>
     </div>
     <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">🔔 Notifications</span><span class="color-muted">→</span></div></div>
     <div class="card" style="cursor:pointer;"><div class="row"><span class="fw-600">❓ Help & Support</span><span class="color-muted">→</span></div></div>
@@ -981,7 +995,6 @@ let todayTrips = 0;
 async function init() {
   injectLogos();
   initMap();
-  initFaceIO();
   registerPush();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
@@ -2099,11 +2112,11 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 // ═══════════════════════════════════════════
 // FACEIO — DRIVER FACE VERIFICATION
 // ═══════════════════════════════════════════
-const FACEIO_PUBLIC_ID = 'fioa2acd';
-let faceio = null;
+// Native camera face verification
+let faceStream = null;
+let capturedFaceData = null;
 let driverFaceCallback = null;
 let driverFaceAttempts = 0;
-const MAX_FACE_ATTEMPTS = 10; // unlimited retries per session
 
 function initFaceIO() {
   try {
@@ -2182,87 +2195,119 @@ function closeDriverFaceModal() {
 // ═══════════════════════════════════════════
 // FACE ENROLLMENT FROM PROFILE
 // ═══════════════════════════════════════════
-async function enrollDriverFaceFromProfile() {
-  const btn     = document.getElementById('face-enroll-profile-btn');
-  const loading = document.getElementById('face-enroll-profile-loading');
-  const status  = document.getElementById('face-id-status');
-
-  // Lazy load FACEIO script with timeout
-  if (typeof faceIO === 'undefined') {
-    btn.textContent = 'Loading Face ID…';
-    btn.disabled = true;
-
-    const loaded = await Promise.race([
-      new Promise(resolve => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.faceio.net/fio.js';
-        s.onload = () => resolve(true);
-        s.onerror = () => resolve(false);
-        document.head.appendChild(s);
-      }),
-      new Promise(resolve => setTimeout(() => resolve(false), 8000))
-    ]);
-
-    btn.textContent = '📷 Enroll Face ID';
-    btn.disabled = false;
-
-    if (!loaded) {
-      toast('Face ID failed to load. Check your connection and try again.');
-      return;
-    }
-  }
-
-  // Always create fresh faceIO instance
+// ═══════════════════════════════════════════
+// NATIVE CAMERA ENROLLMENT
+// ═══════════════════════════════════════════
+async function openFaceCamera() {
   try {
-    faceio = new faceIO(FACEIO_PUBLIC_ID);
+    faceStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    const video = document.getElementById('face-video');
+    video.srcObject = faceStream;
+    document.getElementById('face-camera-wrap').style.display  = 'block';
+    document.getElementById('face-preview-wrap').style.display = 'none';
+    document.getElementById('face-enroll-profile-btn').style.display = 'none';
   } catch(e) {
-    toast('Face ID unavailable: ' + e.message);
-    btn.style.display     = 'block';
-    loading.style.display = 'none';
-    return;
+    toast('Camera access denied. Please allow camera access in your browser settings.');
+  }
+}
+
+function captureDriverSelfie() {
+  const video  = document.getElementById('face-video');
+  const canvas = document.getElementById('face-canvas');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  capturedFaceData = canvas.toDataURL('image/jpeg', 0.8);
+
+  // Show preview
+  document.getElementById('face-preview-img').src             = capturedFaceData;
+  document.getElementById('face-camera-wrap').style.display   = 'none';
+  document.getElementById('face-preview-wrap').style.display  = 'block';
+
+  // Stop camera
+  if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
+}
+
+function retakeFaceSelfie() {
+  capturedFaceData = null;
+  document.getElementById('face-preview-wrap').style.display = 'none';
+  openFaceCamera();
+}
+
+function closeFaceCamera() {
+  if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
+  document.getElementById('face-camera-wrap').style.display  = 'none';
+  document.getElementById('face-preview-wrap').style.display = 'none';
+  document.getElementById('face-enroll-profile-btn').style.display = 'block';
+}
+
+async function saveFaceSelfie() {
+  if (!capturedFaceData) return;
+
+  const btn    = document.getElementById('face-enroll-profile-btn');
+  const status = document.getElementById('face-id-status');
+
+  btn.disabled     = true;
+  btn.textContent  = 'Processing face…';
+
+  // Load face-api models first
+  const modelsLoaded = await loadFaceAPI();
+  if (!modelsLoaded) {
+    toast('Face detection unavailable. Saving photo only.');
   }
 
-  btn.style.display     = 'none';
-  loading.style.display = 'block';
-
   try {
-    const response = await faceio.enroll({
-      locale:  'auto',
-      payload: { userId: currentUser.id, role: 'driver' }
-    });
+    let faceDescriptor = null;
 
-    // Save facial ID to driver record
+    if (modelsLoaded) {
+      // Create image element from captured data
+      const img = new Image();
+      img.src   = capturedFaceData;
+      await new Promise(r => img.onload = r);
+
+      const detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks(true)
+        .withFaceDescriptor();
+
+      if (!detection) {
+        toast('No face detected in photo. Please retake.');
+        btn.disabled    = false;
+        btn.textContent = '📷 Take selfie for Face ID';
+        document.getElementById('face-preview-wrap').style.display = 'none';
+        document.getElementById('face-enroll-profile-btn').style.display = 'block';
+        return;
+      }
+      faceDescriptor = JSON.stringify(Array.from(detection.descriptor));
+      console.log('Face descriptor generated:', faceDescriptor.length, 'chars');
+    }
+
+    // Save to Supabase
     await sb.from('drivers').update({
-      face_id:          response.facialId,
-      face_enrolled_at: new Date().toISOString()
+      profile_photo:    capturedFaceData,
+      face_enrolled_at: new Date().toISOString(),
+      face_descriptor:  faceDescriptor
     }).eq('id', currentUser.id);
 
-    if (driverRecord) driverRecord.face_id = response.facialId;
+    if (driverRecord) {
+      driverRecord.face_enrolled_at = new Date().toISOString();
+      driverRecord.profile_photo    = capturedFaceData;
+    }
 
-    loading.style.display = 'none';
-    btn.style.display     = 'block';
-    btn.textContent       = '✅ Face ID enrolled';
-    btn.disabled          = true;
+    document.getElementById('face-preview-wrap').style.display = 'none';
+    btn.style.display    = 'block';
+    btn.textContent      = '✅ Face ID enrolled';
+    btn.disabled         = true;
     if (status) {
       status.textContent = 'Enrolled ✓';
       status.className   = 'badge badge-green';
     }
     toast('Face ID enrolled successfully! ✓');
-
-  } catch(err) {
-    loading.style.display = 'none';
-    btn.style.display     = 'block';
-
-    const errMap = {
-      PERMISSION_REFUSED:  'Camera permission denied. Please allow camera access.',
-      NO_FACES_DETECTED:   'No face detected. Look directly at the camera.',
-      MANY_FACES:          'Multiple faces detected. Only you should be visible.',
-      PAD_ATTACK:          'Spoofing detected. Use your real face.',
-      NETWORK_FAILURE:     'Network error. Check your connection.',
-      FACE_DUPLICATION:    'This face is already enrolled on another account.',
-    };
-    toast(errMap[err.code] || 'Enrollment failed. Please try again.');
-    console.error('FACEIO error:', err);
+  } catch(e) {
+    toast('Failed to save: ' + e.message);
+    btn.disabled    = false;
+    btn.textContent = '📷 Take selfie for Face ID';
+    closeFaceCamera();
   }
 }
 
