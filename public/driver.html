@@ -2314,16 +2314,23 @@ async function saveFaceSelfie() {
       console.log('Face descriptor generated:', faceDescriptor.length, 'chars');
     }
 
-    // Save to Supabase
-    await sb.from('drivers').update({
-      profile_photo:    capturedFaceData,
+    // Save to Supabase — only save descriptor, not full photo (too large)
+    const { error: saveError } = await sb.from('drivers').update({
       face_enrolled_at: new Date().toISOString(),
       face_descriptor:  faceDescriptor
     }).eq('id', currentUser.id);
 
+    if (saveError) {
+      console.error('Save error:', saveError);
+      toast('Save failed: ' + saveError.message);
+      btn.disabled    = false;
+      btn.textContent = '📷 Take selfie for Face ID';
+      return;
+    }
+
     if (driverRecord) {
       driverRecord.face_enrolled_at = new Date().toISOString();
-      driverRecord.profile_photo    = capturedFaceData;
+      driverRecord.face_descriptor  = faceDescriptor;
     }
 
     document.getElementById('face-preview-wrap').style.display = 'none';
