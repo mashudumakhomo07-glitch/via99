@@ -891,10 +891,12 @@ function calcFare(type){
   const dist=window._routeDistKm||5,dur=window._routeDurMin||10;
   const surge=getSurgeMultiplier(type);
   const raw=(cfg.base_fare+(cfg.per_km*dist)+(cfg.per_min*dur))*surge;
-  const final=Math.max(raw,cfg.minimum_fare);
-  const promoDiscount=calcPromoDiscount(final);
-  const passengerFare=Math.max(0,(final*(1-cfg.rider_discount/100))-promoDiscount);
-  return{passengerFare,driverEarnings:final*(cfg.driver_share/100),via99Fee:final*(cfg.via99_share/100),surgeMultiplier:surge,promoDiscount};
+  const passengerFare=Math.max(raw,cfg.minimum_fare);
+  const promoDiscount=calcPromoDiscount(passengerFare);
+  const finalFare=Math.max(0,passengerFare-promoDiscount);
+  const via99Fee=finalFare*(cfg.via99_share/100);
+  const driverEarnings=finalFare*(cfg.driver_share/100);
+  return{passengerFare:finalFare,driverEarnings,via99Fee,surgeMultiplier:surge,promoDiscount};
 }
 function calculateFares(){
   ['economy','business','msheto'].forEach(t=>{
