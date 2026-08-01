@@ -1274,36 +1274,41 @@ let tripStatusSub   = null;
 function startPolling() { subscribeToNewTrips(); }  // alias
 function stopPolling()  { unsubscribeNewTrips(); }   // alias
 
+// Poll for new trips every 3 seconds — Realtime INSERT unreliable on free tier
+let tripPollInterval = null;
+
 function subscribeToNewTrips() {
   unsubscribeNewTrips();
   if (!isOnline || !currentUser) return;
+  // Poll every 3 seconds for new requested trips
+  tripPollInterval = setInterval(pollForNewTrip, 3000);
+}
 
-  // Note: Supabase Realtime INSERT filters on non-PK columns don't work
-  // So we subscribe to ALL inserts and filter in callback
-  tripListenerSub = sb
-    .channel('new-trips-' + currentUser.id)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'trips'
-    }, payload => {
-      if (!isOnline || currentTrip) return;
-      const trip = payload.new;
-      // Filter in callback instead
-      if (trip.status !== 'requested') return;
-      if (trip.driver_id !== null) return;
-      unsubscribeNewTrips();
-      currentTrip = trip;
-      notifyDriver("Via99 — New trip request!", `Pickup: ${(trip.pickup_address||"").split(",")[0]} → ${(trip.dest_address||"").split(",")[0]}`);
-      showRequestScreen(trip);
-    })
-    .subscribe(status => {
-      console.log('Via99 Realtime status:', status);
-    });
+async function pollForNewTrip() {
+  if (!isOnline || currentTrip) return;
+  try {
+    const { data, error } = await sb
+      .from('trips')
+      .select('*')
+      .eq('status', 'requested')
+      .is('driver_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return;
+    // Got a trip
+    unsubscribeNewTrips();
+    currentTrip = data;
+    notifyDriver("Via99 — New trip request!", `Pickup: ${(data.pickup_address||"").split(",")[0]} → ${(data.dest_address||"").split(",")[0]}`);
+    showRequestScreen(data);
+  } catch(e) {
+    console.log('Poll error:', e);
+  }
 }
 
 function unsubscribeNewTrips() {
-  if (tripListenerSub) { sb.removeChannel(tripListenerSub); tripListenerSub = null; }
+  if (tripPollInterval) { clearInterval(tripPollInterval); tripPollInterval = null; }
+  if (tripListenerSub)  { sb.removeChannel(tripListenerSub); tripListenerSub = null; }
 }
 
 // Subscribe to current trip status changes (after accepting)
