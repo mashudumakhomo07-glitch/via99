@@ -984,7 +984,7 @@ async function proceedWithBooking(){
     surge_multiplier:getSurgeMultiplier(selectedRide)};
   const{data,error}=await sb.from('trips').insert(tripData).select().single();
   btn.disabled=false;btn.textContent='Book Ride';
-  if(error){toast('Booking failed. Try again.');return;}
+  if(error){toast('Error: ' + error.message);console.error('Booking error:',error);return;}
   currentTrip=data;
   document.getElementById('finding-dest').textContent=destAddress.split(',')[0];
   document.getElementById('finding-fare').textContent=`R${passengerFare.toFixed(2)}`;
