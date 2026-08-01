@@ -1333,13 +1333,50 @@ let tripStatusSub   = null;
 function startPolling() { subscribeToNewTrips(); }  // alias
 function stopPolling()  { unsubscribeNewTrips(); }   // alias
 
-// Poll for new trips every 3 seconds — Realtime INSERT unreliable on free tier
+// ═══════════════════════════════════════════
+// TRIP POLLING — Web Worker + fallback
+// Web Worker runs in background thread
+// Android Chrome won't throttle it
+// ═══════════════════════════════════════════
 let tripPollInterval = null;
+let tripWorker       = null;
 
 function subscribeToNewTrips() {
   unsubscribeNewTrips();
   if (!isOnline || !currentUser) return;
-  // Poll every 3 seconds for new requested trips
+
+  // Try Web Worker first (not throttled on mobile)
+  if (typeof Worker !== 'undefined') {
+    try {
+      tripWorker = new Worker('/poll-worker.js');
+      tripWorker.postMessage({
+        type: 'START',
+        url:  SUPABASE_URL,
+        key:  SUPABASE_ANON
+      });
+      tripWorker.onmessage = async (e) => {
+        if (e.data.type === 'TRIP_FOUND' && isOnline && !currentTrip) {
+          unsubscribeNewTrips();
+          currentTrip = e.data.trip;
+          notifyDriver('Via99 — New trip request!',
+            `Pickup: ${(currentTrip.pickup_address||'').split(',')[0]} → ${(currentTrip.dest_address||'').split(',')[0]}`);
+          showRequestScreen(currentTrip);
+        }
+      };
+      tripWorker.onerror = (e) => {
+        console.log('Worker error, falling back to interval:', e);
+        tripWorker = null;
+        startFallbackPolling();
+      };
+      return;
+    } catch(e) {
+      console.log('Worker failed, using interval:', e);
+    }
+  }
+  startFallbackPolling();
+}
+
+function startFallbackPolling() {
   tripPollInterval = setInterval(pollForNewTrip, 2000);
 }
 
@@ -1355,10 +1392,10 @@ async function pollForNewTrip() {
       .limit(1)
       .maybeSingle();
     if (error || !data) return;
-    // Got a trip
     unsubscribeNewTrips();
     currentTrip = data;
-    notifyDriver("Via99 — New trip request!", `Pickup: ${(data.pickup_address||"").split(",")[0]} → ${(data.dest_address||"").split(",")[0]}`);
+    notifyDriver('Via99 — New trip request!',
+      `Pickup: ${(data.pickup_address||'').split(',')[0]} → ${(data.dest_address||'').split(',')[0]}`);
     showRequestScreen(data);
   } catch(e) {
     console.log('Poll error:', e);
@@ -1366,8 +1403,9 @@ async function pollForNewTrip() {
 }
 
 function unsubscribeNewTrips() {
-  if (tripPollInterval) { clearInterval(tripPollInterval); tripPollInterval = null; }
-  if (tripListenerSub)  { sb.removeChannel(tripListenerSub); tripListenerSub = null; }
+  if (tripWorker)      { tripWorker.postMessage({ type: 'STOP' }); tripWorker.terminate(); tripWorker = null; }
+  if (tripPollInterval){ clearInterval(tripPollInterval); tripPollInterval = null; }
+  if (tripListenerSub) { sb.removeChannel(tripListenerSub); tripListenerSub = null; }
 }
 
 // Subscribe to current trip status changes (after accepting)
@@ -2297,13 +2335,16 @@ async function saveFaceSelfie() {
       img.src   = capturedFaceData;
       await new Promise(r => img.onload = r);
 
+      btn.textContent = 'Detecting face…';
       const detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
         .withFaceLandmarks(true)
         .withFaceDescriptor();
 
+      console.log('Detection result:', detection);
+
       if (!detection) {
-        toast('No face detected in photo. Please retake.');
+        toast('No face detected. Try better lighting or move closer.');
         btn.disabled    = false;
         btn.textContent = '📷 Take selfie for Face ID';
         document.getElementById('face-preview-wrap').style.display = 'none';
@@ -2311,10 +2352,13 @@ async function saveFaceSelfie() {
         return;
       }
       faceDescriptor = JSON.stringify(Array.from(detection.descriptor));
-      console.log('Face descriptor generated:', faceDescriptor.length, 'chars');
+      console.log('Face descriptor length:', faceDescriptor.length);
+      btn.textContent = 'Saving…';
     }
 
-    // Save to Supabase — only save descriptor, not full photo (too large)
+    // Save to Supabase
+    console.log('Saving face for driver:', currentUser?.id);
+    console.log('Descriptor size:', faceDescriptor?.length);
     const { error: saveError } = await sb.from('drivers').update({
       face_enrolled_at: new Date().toISOString(),
       face_descriptor:  faceDescriptor
