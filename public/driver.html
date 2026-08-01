@@ -7,7 +7,7 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.faceio.net/fio.js"></script>
+<!-- FaceIO loaded lazily when needed -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2183,11 +2183,39 @@ function closeDriverFaceModal() {
 // FACE ENROLLMENT FROM PROFILE
 // ═══════════════════════════════════════════
 async function enrollDriverFaceFromProfile() {
-  if (!faceio) { initFaceIO(); }
-  if (!faceio) { toast('Face ID unavailable. Check your connection.'); return; }
+  const btn     = document.getElementById('face-enroll-profile-btn');
+  const loading = document.getElementById('face-enroll-profile-loading');
+  const status  = document.getElementById('face-id-status');
 
-  document.getElementById('face-enroll-profile-btn').style.display     = 'none';
-  document.getElementById('face-enroll-profile-loading').style.display = 'block';
+  // Lazy load FACEIO script if not loaded yet
+  if (typeof faceIO === 'undefined') {
+    btn.textContent = 'Loading…';
+    btn.disabled = true;
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.faceio.net/fio.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    }).catch(() => {
+      toast('Failed to load Face ID. Check your connection.');
+      btn.textContent = '📷 Enroll Face ID';
+      btn.disabled = false;
+      return;
+    });
+    btn.textContent = '📷 Enroll Face ID';
+    btn.disabled = false;
+  }
+
+  // Init faceio
+  if (!faceio) { initFaceIO(); }
+  if (!faceio) {
+    toast('Face ID service unavailable. Try again later.');
+    return;
+  }
+
+  btn.style.display     = 'none';
+  loading.style.display = 'block';
 
   try {
     const response = await faceio.enroll({
@@ -2203,27 +2231,30 @@ async function enrollDriverFaceFromProfile() {
 
     if (driverRecord) driverRecord.face_id = response.facialId;
 
-    document.getElementById('face-enroll-profile-btn').style.display     = 'block';
-    document.getElementById('face-enroll-profile-loading').style.display = 'none';
-    document.getElementById('face-enroll-profile-btn').textContent       = '✅ Face ID enrolled';
-    document.getElementById('face-enroll-profile-btn').disabled          = true;
-    document.getElementById('face-id-status').textContent                = 'Enrolled';
-    document.getElementById('face-id-status').className                  = 'badge badge-green';
+    loading.style.display = 'none';
+    btn.style.display     = 'block';
+    btn.textContent       = '✅ Face ID enrolled';
+    btn.disabled          = true;
+    if (status) {
+      status.textContent = 'Enrolled ✓';
+      status.className   = 'badge badge-green';
+    }
     toast('Face ID enrolled successfully! ✓');
 
   } catch(err) {
-    document.getElementById('face-enroll-profile-btn').style.display     = 'block';
-    document.getElementById('face-enroll-profile-loading').style.display = 'none';
+    loading.style.display = 'none';
+    btn.style.display     = 'block';
 
     const errMap = {
-      PERMISSION_REFUSED:  'Camera permission denied.',
-      NO_FACES_DETECTED:   'No face detected. Look at the camera.',
-      MANY_FACES:          'Multiple faces detected.',
-      PAD_ATTACK:          'Spoofing detected.',
-      NETWORK_FAILURE:     'Network error. Try again.',
-      FACE_DUPLICATION:    'Face already enrolled on another account.',
+      PERMISSION_REFUSED:  'Camera permission denied. Please allow camera access.',
+      NO_FACES_DETECTED:   'No face detected. Look directly at the camera.',
+      MANY_FACES:          'Multiple faces detected. Only you should be visible.',
+      PAD_ATTACK:          'Spoofing detected. Use your real face.',
+      NETWORK_FAILURE:     'Network error. Check your connection.',
+      FACE_DUPLICATION:    'This face is already enrolled on another account.',
     };
-    toast(errMap[err.code] || 'Enrollment failed: ' + (err.message || err.code));
+    toast(errMap[err.code] || 'Enrollment failed. Please try again.');
+    console.error('FACEIO error:', err);
   }
 }
 

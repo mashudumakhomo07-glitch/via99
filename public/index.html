@@ -10,7 +10,7 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<script src="https://cdn.faceio.net/fio.js"></script>
+<!-- FaceIO loaded lazily -->
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -695,7 +695,6 @@ let inRideFlow=false;
 async function init(){
   injectLogos();
   initMap();
-  initFaceIO();
   await loadFareConfig();
   await loadSurgeConfig();
   await checkAuth();
@@ -1680,8 +1679,15 @@ function requireFaceVerification(context, callback) {
 }
 
 async function startFaceVerification() {
-  if (!faceio) { initFaceIO(); }
-  if (!faceio) { toast('Face verification unavailable.'); return; }
+  if (!faceio) {
+    const loaded = await loadFaceIOScript();
+    if (!loaded || !faceio) {
+      toast('Face verification unavailable. Skipping.');
+      closeFaceModal();
+      if (faceVerificationCallback) faceVerificationCallback(true, null);
+      return;
+    }
+  }
 
   document.getElementById('face-modal-btn').style.display     = 'none';
   document.getElementById('face-modal-loading').style.display = 'block';
