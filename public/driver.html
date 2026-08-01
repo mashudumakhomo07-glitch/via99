@@ -2212,26 +2212,24 @@ async function enrollDriverFaceFromProfile() {
     }
   }
 
-  // Init faceio
-  if (!faceio) { initFaceIO(); }
-  if (!faceio) {
-    toast('Face ID unavailable. Make sure you are on via99.vercel.app');
+  // Always create fresh faceIO instance
+  try {
+    faceio = new faceIO(FACEIO_PUBLIC_ID);
+  } catch(e) {
+    toast('Face ID unavailable: ' + e.message);
+    btn.style.display     = 'block';
+    loading.style.display = 'none';
     return;
   }
 
   btn.style.display     = 'none';
   loading.style.display = 'block';
 
-  console.log('Starting FACEIO enroll, faceio object:', faceio);
-
   try {
-    console.log('Calling faceio.enroll...');
     const response = await faceio.enroll({
-      locale:      'auto',
-      userConsent: false,
-      payload:     { userId: currentUser.id, role: 'driver' }
+      locale:  'auto',
+      payload: { userId: currentUser.id, role: 'driver' }
     });
-    console.log('Enroll response:', response);
 
     // Save facial ID to driver record
     await sb.from('drivers').update({
