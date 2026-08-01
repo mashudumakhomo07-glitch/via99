@@ -2187,30 +2187,35 @@ async function enrollDriverFaceFromProfile() {
   const loading = document.getElementById('face-enroll-profile-loading');
   const status  = document.getElementById('face-id-status');
 
-  // Lazy load FACEIO script if not loaded yet
+  // Lazy load FACEIO script with timeout
   if (typeof faceIO === 'undefined') {
-    btn.textContent = 'Loading…';
+    btn.textContent = 'Loading Face ID…';
     btn.disabled = true;
-    await new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.faceio.net/fio.js';
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    }).catch(() => {
-      toast('Failed to load Face ID. Check your connection.');
-      btn.textContent = '📷 Enroll Face ID';
-      btn.disabled = false;
-      return;
-    });
+
+    const loaded = await Promise.race([
+      new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.faceio.net/fio.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.head.appendChild(s);
+      }),
+      new Promise(resolve => setTimeout(() => resolve(false), 8000))
+    ]);
+
     btn.textContent = '📷 Enroll Face ID';
     btn.disabled = false;
+
+    if (!loaded) {
+      toast('Face ID failed to load. Check your connection and try again.');
+      return;
+    }
   }
 
   // Init faceio
   if (!faceio) { initFaceIO(); }
   if (!faceio) {
-    toast('Face ID service unavailable. Try again later.');
+    toast('Face ID unavailable. Make sure you are on via99.vercel.app');
     return;
   }
 
