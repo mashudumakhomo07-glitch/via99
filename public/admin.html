@@ -558,8 +558,9 @@ input::placeholder{color:var(--muted);}
 
 <script>
 const SUPABASE_URL  = 'https://ztelvtwdujboraxokhux.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0ZWx2dHdkdWpib3JheG9raHV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5NzU5NTksImV4cCI6MjEwMDU1MTk1OX0.ZjMUuDolReP_PsvC66fyWlYcGO01NDRi8HoB24rCBaM';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+// Service role key — bypasses RLS for admin access
+const SUPABASE_SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0ZWx2dHdkdWpib3JheG9raHV4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDk3NTk1OSwiZXhwIjoyMTAwNTUxOTU5fQ.e4x4n1BwRafDt0VAcKMOjf0YJy1QTaWPx7aFEH0tUCc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
 const ADMIN_EMAIL = 'tech@ipfi.site';
 // Password removed from source — auth handled by Supabase only

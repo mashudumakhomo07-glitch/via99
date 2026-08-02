@@ -1349,10 +1349,14 @@ function subscribeToNewTrips() {
   if (typeof Worker !== 'undefined') {
     try {
       tripWorker = new Worker('/poll-worker.js');
+      // Get current session JWT for authenticated requests
+      const { data: { session } } = await sb.auth.getSession();
+      const authToken = session?.access_token || SUPABASE_ANON;
       tripWorker.postMessage({
         type: 'START',
         url:  SUPABASE_URL,
-        key:  SUPABASE_ANON
+        key:  SUPABASE_ANON,
+        jwt:  authToken
       });
       tripWorker.onmessage = async (e) => {
         if (e.data.type === 'TRIP_FOUND' && isOnline && !currentTrip) {

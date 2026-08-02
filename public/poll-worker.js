@@ -4,19 +4,23 @@
 let pollInterval = null;
 let supabaseUrl  = null;
 let supabaseKey  = null;
+let authJwt      = null;
 let isActive     = false;
 
 self.onmessage = function(e) {
-  const { type, url, key } = e.data;
+  const { type, url, key, jwt } = e.data;
 
   if (type === 'START') {
     supabaseUrl = url;
     supabaseKey = key;
+    authJwt     = jwt || key;
     isActive    = true;
     startPolling();
   } else if (type === 'STOP') {
     isActive = false;
     if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  } else if (type === 'UPDATE_JWT') {
+    authJwt = e.data.jwt;
   }
 };
 
@@ -33,7 +37,7 @@ async function checkForTrips() {
       {
         headers: {
           'apikey':        supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${authJwt}`,
           'Content-Type':  'application/json'
         }
       }
@@ -42,7 +46,6 @@ async function checkForTrips() {
     const data = await res.json();
     if (data && data.length > 0) {
       self.postMessage({ type: 'TRIP_FOUND', trip: data[0] });
-      // Stop polling until driver responds
       isActive = false;
       if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
     }
