@@ -1082,13 +1082,15 @@ async function signIn() {
 async function loadDriverData() {
   if (!currentUser) return;
 
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  const { data: profile, error: profileError } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (profileError) { toast('Profile error: ' + profileError.message); console.error('Profile error:', profileError); return; }
   driverProfile = profile;
 
-  const { data: driver } = await sb.from('drivers').select('*').eq('id', currentUser.id).single();
+  const { data: driver, error: driverError } = await sb.from('drivers').select('*').eq('id', currentUser.id).single();
+  if (driverError) { toast('Driver error: ' + driverError.message); console.error('Driver error:', driverError); return; }
   driverRecord = driver;
 
-  if (!driver) { toast('Driver record not found.'); return; }
+  if (!driver) { toast('Driver record not found for: ' + currentUser.id); return; }
 
   // Update dashboard UI
   const name = profile?.full_name || 'Driver';
