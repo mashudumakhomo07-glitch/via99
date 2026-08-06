@@ -396,11 +396,11 @@
 
     <div class="input-wrap">
       <span class="input-icon">✉️</span>
-      <input type="email" id="login-email" placeholder="Email address" value="driver@via99.co.za"/>
+      <input type="email" id="login-email" placeholder="Email address"/>
     </div>
     <div class="input-wrap">
       <span class="input-icon">🔒</span>
-      <input type="password" id="login-password" placeholder="Password" value="Via99Driver123"/>
+      <input type="password" id="login-password" placeholder="Password"/>
     </div>
     <button class="btn btn-primary" id="login-btn" onclick="signIn()">Sign in</button>
 
@@ -1343,7 +1343,7 @@ function stopPolling()  { unsubscribeNewTrips(); }   // alias
 let tripPollInterval = null;
 let tripWorker       = null;
 
-function subscribeToNewTrips() {
+async function subscribeToNewTrips() {
   unsubscribeNewTrips();
   if (!isOnline || !currentUser) return;
 
