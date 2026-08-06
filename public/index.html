@@ -10,7 +10,7 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<!-- FaceIO loaded lazily -->
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -35,6 +35,14 @@ html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);font-famil
 
 /* SHEET */
 .sheet{margin-top:auto;background:rgba(18,18,20,0.93);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:20px 20px 90px;pointer-events:auto;animation:slideUp 0.3s cubic-bezier(0.16,1,0.3,1);}
+/* TRIP TRAY — collapsible bottom sheet during trip */
+.trip-tray{position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(18,18,20,0.96);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border);border-radius:20px 20px 0 0;transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);padding:0 20px 40px;}
+.trip-tray.collapsed{transform:translateY(calc(100% - 64px));}
+.tray-handle-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0 10px;cursor:pointer;}
+.tray-handle{width:36px;height:4px;background:var(--muted2);border-radius:2px;margin:0 auto;}
+.tray-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:8px 16px;cursor:pointer;position:absolute;top:14px;left:50%;transform:translateX(-50%);}
+/* Status pill floating on map */
+.status-float{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:25;background:rgba(18,18,20,0.92);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:100px;padding:10px 20px;display:flex;align-items:center;gap:8px;pointer-events:none;}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
 .sheet-handle{width:36px;height:4px;background:var(--muted2);border-radius:2px;margin:0 auto 20px;}
 
@@ -401,26 +409,35 @@ input::placeholder{color:var(--muted);}
 <!-- ═══════════════ SCREEN: MATCHED ═══════════════ -->
 <div id="screen-matched" class="screen">
   <div class="topbar"><img src="" id="logo-matched" style="height:28px;object-fit:contain;" alt="Via99"/><div style="width:38px"></div></div>
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="row mb-12">
-      <p class="fw-600" style="font-size:16px;">Driver on the way</p>
-      <div style="display:flex;align-items:center;gap:6px;"><span class="pulse-dot"></span><span class="fs-13 color-green fw-600">Live</span></div>
-    </div>
-    <div class="driver-card">
-      <div class="driver-avatar">🧑</div>
-      <div class="driver-info">
-        <div style="font-size:16px;font-weight:600;" id="matched-name">—</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:2px;" id="matched-vehicle">—</div>
-        <div style="font-size:13px;margin-top:4px;" id="matched-rating">⭐ —</div>
+  <!-- Status pill floating on map -->
+  <div class="status-float">
+    <span class="pulse-dot"></span>
+    <span style="font-size:14px;font-weight:600;">Driver on the way</span>
+    <span class="eta-badge" id="matched-eta" style="margin-left:4px;">— min</span>
+  </div>
+  <!-- Collapsible tray -->
+  <div class="trip-tray collapsed" id="matched-tray">
+    <div class="tray-handle-row" onclick="toggleTray('matched-tray')">
+      <div class="tray-handle" style="position:absolute;left:50%;transform:translateX(-50%);top:10px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:4px;">
+        <div class="driver-avatar" style="width:40px;height:40px;font-size:20px;">🧑</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;" id="matched-name">—</div>
+          <div style="font-size:12px;color:var(--muted);" id="matched-vehicle">—</div>
+        </div>
       </div>
-      <div class="eta-badge" id="matched-eta">— min</div>
+      <span style="color:var(--muted);font-size:20px;" id="matched-tray-arrow">∧</span>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="btn btn-ghost" style="flex:1;" onclick="callDriver()">📞 Call</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="openChat()">💬 Chat</button>
-      <button class="btn btn-ghost" style="flex:1;" onclick="openShareModal()">📡 Share</button>
-      <button class="btn btn-danger" style="flex:1;" onclick="cancelTrip()">✕</button>
+    <div id="matched-tray-content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:13px;color:var(--muted);" id="matched-rating">⭐ —</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn btn-ghost" style="flex:1;" onclick="callDriver()">📞 Call</button>
+        <button class="btn btn-ghost" style="flex:1;" onclick="openChat()">💬 Chat</button>
+        <button class="btn btn-ghost" style="flex:1;" onclick="openShareModal()">📡 Share</button>
+        <button class="btn btn-danger" style="flex:1;" onclick="cancelTrip()">✕</button>
+      </div>
     </div>
   </div>
 </div>
@@ -428,43 +445,61 @@ input::placeholder{color:var(--muted);}
 <!-- ═══════════════ SCREEN: PICKUP ═══════════════ -->
 <div id="screen-pickup" class="screen">
   <div class="topbar"><img src="" id="logo-pickup" style="height:28px;object-fit:contain;" alt="Via99"/><div style="width:38px"></div></div>
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="row mb-12">
-      <p class="fw-600" style="font-size:16px;">Driver arriving</p>
-      <span class="eta-badge" id="pickup-eta">— min</span>
-    </div>
-    <div class="progress-wrap"><div class="progress-bar" id="pickup-progress" style="width:60%;"></div></div>
-    <div class="driver-card">
-      <div class="driver-avatar">🧑</div>
-      <div class="driver-info">
-        <div style="font-size:16px;font-weight:600;" id="pickup-driver-name">—</div>
-        <div style="font-size:13px;color:var(--muted);" id="pickup-driver-vehicle">—</div>
+  <!-- Status pill -->
+  <div class="status-float" style="background:rgba(255,140,0,0.15);border-color:rgba(255,140,0,0.3);">
+    <span style="font-size:16px;">📍</span>
+    <span style="font-size:14px;font-weight:600;color:orange;">Driver arrived</span>
+  </div>
+  <!-- Tray -->
+  <div class="trip-tray collapsed" id="pickup-tray">
+    <div class="tray-handle-row" onclick="toggleTray('pickup-tray')">
+      <div class="tray-handle" style="position:absolute;left:50%;transform:translateX(-50%);top:10px;"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:4px;">
+        <div class="driver-avatar" style="width:40px;height:40px;font-size:20px;">🧑</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;" id="pickup-driver-name">—</div>
+          <div style="font-size:12px;color:var(--muted);" id="pickup-driver-vehicle">—</div>
+        </div>
       </div>
+      <span style="color:var(--muted);font-size:20px;" id="pickup-tray-arrow">∧</span>
     </div>
-    <p class="fs-13 color-muted text-center">Wait at your pickup point</p>
+    <div id="pickup-tray-content">
+      <div style="background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.2);border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">
+        <p style="font-size:15px;font-weight:700;color:orange;">Your driver has arrived!</p>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px;">Head to your pickup point</p>
+      </div>
+      <button class="btn btn-ghost" onclick="callDriver()">📞 Call driver</button>
+    </div>
   </div>
 </div>
 
 <!-- ═══════════════ SCREEN: IN TRIP ═══════════════ -->
 <div id="screen-intrip" class="screen">
   <div class="topbar"><img src="" id="logo-intrip" style="height:28px;object-fit:contain;" alt="Via99"/><div style="width:38px"></div></div>
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="row mb-12">
-      <p class="fw-600" style="font-size:16px;">On the way</p>
-      <div style="display:flex;align-items:center;gap:6px;"><span class="pulse-dot"></span><span class="fs-13 color-green fw-600">In trip</span></div>
+  <!-- Status pill -->
+  <div class="status-float">
+    <span class="pulse-dot"></span>
+    <span style="font-size:14px;font-weight:600;color:var(--green);">In trip</span>
+    <span style="font-size:13px;color:var(--muted);" id="intrip-dest-pill">—</span>
+  </div>
+  <!-- Tray -->
+  <div class="trip-tray collapsed" id="intrip-tray">
+    <div class="tray-handle-row" onclick="toggleTray('intrip-tray')">
+      <div class="tray-handle" style="position:absolute;left:50%;transform:translateX(-50%);top:10px;"></div>
+      <div style="display:flex;gap:16px;padding-top:4px;">
+        <div class="stat-box" style="flex:1;"><div class="stat-val" id="intrip-dist">—</div><div class="stat-label">km left</div></div>
+        <div class="stat-box" style="flex:1;"><div class="stat-val" id="intrip-time">—</div><div class="stat-label">min left</div></div>
+        <div class="stat-box" style="flex:1;"><div class="stat-val color-red" id="intrip-fare">R—</div><div class="stat-label">fare</div></div>
+      </div>
+      <span style="color:var(--muted);font-size:20px;" id="intrip-tray-arrow">∧</span>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:14px;">
-      <div class="stat-box"><div class="stat-val" id="intrip-dist">—</div><div class="stat-label">km left</div></div>
-      <div class="stat-box"><div class="stat-val" id="intrip-time">—</div><div class="stat-label">min left</div></div>
-      <div class="stat-box"><div class="stat-val color-red" id="intrip-fare">R—</div><div class="stat-label">fare</div></div>
-    </div>
-    <p class="fs-13 color-muted text-center" id="intrip-dest">Heading to —</p>
-    <div class="divider"></div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="openShareModal()">📡 Share trip</button>
-      <button class="btn btn-danger" style="flex:1;font-size:13px;" onclick="openReportModal('in_trip')">🚨 Report</button>
+    <div id="intrip-tray-content">
+      <p class="fs-13 color-muted text-center mb-12" id="intrip-dest">Heading to —</p>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="openShareModal()">📡 Share</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="openChat()">💬 Chat</button>
+        <button class="btn btn-danger" style="flex:1;font-size:13px;" onclick="openReportModal('in_trip')">🚨 Report</button>
+      </div>
     </div>
   </div>
 </div>
@@ -949,18 +984,7 @@ async function bookRide(){
   if(!checkRateLimit()){return;}
 
   // Check if in dangerous zone — require face verification
-  const dangerZone = isInDangerousZone(userLat, userLng);
-  if (dangerZone && currentProfile?.face_id) {
-    // Only require face verification if passenger has enrolled their face
-    requireFaceVerification('unsafe_area', async (verified) => {
-      if (!verified) {
-        toast('Face verification required to book in ' + dangerZone.name + '.');
-        return;
-      }
-      await proceedWithBooking();
-    });
-    return;
-  }
+  // Face ID temporarily disabled
   await proceedWithBooking();
 }
 
@@ -1053,6 +1077,9 @@ function unsubscribeTrip() {
 
 function showMatchedScreen(trip){
   showSOSBtn();
+  // Show tray briefly then collapse to show map
+  setTimeout(() => expandTray('matched-tray'), 500);
+  setTimeout(() => collapseTray('matched-tray'), 4000);
   const d=trip.drivers;
   document.getElementById('matched-name').textContent=d?.profiles?.full_name||'Driver';
   document.getElementById('matched-vehicle').textContent=`${d?.vehicle_colour||''} ${d?.vehicle_make||''} ${d?.vehicle_model||''} · ${d?.vehicle_plate||''}`.trim();
@@ -1352,13 +1379,7 @@ async function signUp(){
   document.getElementById('bottom-nav').style.display='flex';
   switchTab('home');
 
-  // Prompt face enrollment after signup — optional, can skip
-  setTimeout(() => {
-    requireFaceVerification('signup', (success, facialId) => {
-      if (success) toast('Face ID set up successfully! ✓');
-      else toast('Face ID skipped. You can set it up later in your profile.');
-    });
-  }, 1500);
+  // Face ID enrollment removed — coming soon
 }
 async function loadProfile(){
   if(!currentUser)return;
@@ -1824,6 +1845,36 @@ function shareViaWhatsApp() {
 }
 
 // ═══════════════════════════════════════════
+// TRAY TOGGLE
+// ═══════════════════════════════════════════
+function toggleTray(trayId) {
+  const tray = document.getElementById(trayId);
+  if (!tray) return;
+  const collapsed = tray.classList.toggle('collapsed');
+  const arrowId = trayId.replace('-tray', '-tray-arrow');
+  const arrow = document.getElementById(arrowId);
+  if (arrow) arrow.textContent = collapsed ? '∧' : '∨';
+}
+
+function expandTray(trayId) {
+  const tray = document.getElementById(trayId);
+  if (!tray) return;
+  tray.classList.remove('collapsed');
+  const arrowId = trayId.replace('-tray', '-tray-arrow');
+  const arrow = document.getElementById(arrowId);
+  if (arrow) arrow.textContent = '∨';
+}
+
+function collapseTray(trayId) {
+  const tray = document.getElementById(trayId);
+  if (!tray) return;
+  tray.classList.add('collapsed');
+  const arrowId = trayId.replace('-tray', '-tray-arrow');
+  const arrow = document.getElementById(arrowId);
+  if (arrow) arrow.textContent = '∧';
+}
+
+// ═══════════════════════════════════════════
 // SECURITY — INPUT SANITIZATION + RATE LIMITING
 // ═══════════════════════════════════════════
 function sanitize(str) {
@@ -2184,23 +2235,7 @@ init();
   </div>
 </div>
 
-<!-- FACE VERIFICATION MODAL -->
-<div id="face-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;flex-direction:column;padding:24px;">
-  <div style="width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;text-align:center;">
-    <div style="font-size:48px;margin-bottom:16px;" id="face-modal-icon">🔐</div>
-    <p style="font-size:18px;font-weight:700;margin-bottom:8px;" id="face-modal-title">Identity verification</p>
-    <p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;" id="face-modal-sub">We need to verify your identity before continuing.</p>
-    <div id="face-modal-loading" style="display:none;margin-bottom:16px;">
-      <div class="spinner" style="border-top-color:var(--green);"></div>
-      <p style="font-size:13px;color:var(--muted);">Verifying your face...</p>
-    </div>
-    <button class="btn btn-primary mb-12" id="face-modal-btn" onclick="startFaceVerification()">
-      📷 Start face verification
-    </button>
-    <button class="btn btn-ghost" id="face-skip-btn" onclick="skipFaceVerification()">Skip for now</button>
-    <p style="font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;">Your face data is encrypted and stored securely. Via99 uses this only to verify your identity.</p>
-  </div>
-</div>
+<!-- Face verification modal removed — coming soon -->
 
 <!-- CHAT MODAL -->
 <div id="chat-modal" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.7);align-items:flex-end;">
