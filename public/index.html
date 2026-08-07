@@ -1083,10 +1083,23 @@ function showMatchedScreen(trip){
   document.getElementById('matched-name').textContent=d?.profiles?.full_name||'Driver';
   document.getElementById('matched-vehicle').textContent=`${d?.vehicle_colour||''} ${d?.vehicle_make||''} ${d?.vehicle_model||''} · ${d?.vehicle_plate||''}`.trim();
   document.getElementById('matched-rating').textContent=`⭐ ${Number(d?.rating||5).toFixed(1)}`;
-  document.getElementById('matched-eta').textContent=`${Math.round(trip.estimated_duration_min||5)} min`;
+  document.getElementById('matched-eta').textContent='Calculating…';
   document.getElementById('pickup-driver-name').textContent=d?.profiles?.full_name||'Driver';
   document.getElementById('pickup-driver-vehicle').textContent=`${d?.vehicle_colour||''} ${d?.vehicle_make||''} ${d?.vehicle_model||''}`.trim();
   showRideScreen('screen-matched');
+
+  // Get driver's current location and calculate ETA immediately
+  if (trip.driver_id && trip.pickup_lat && trip.pickup_lng) {
+    sb.from('driver_locations').select('lat,lng').eq('driver_id', trip.driver_id).single()
+      .then(({ data }) => {
+        if (data) {
+          calcDriverETA(data.lat, data.lng, trip.pickup_lat, trip.pickup_lng);
+          etaFetchTimeout = null; // reset throttle for next update
+        } else {
+          document.getElementById('matched-eta').textContent = 'On the way';
+        }
+      });
+  }
 }
 function updatePickupScreen(trip){document.getElementById('pickup-eta').textContent=`${Math.round(trip.estimated_duration_min||3)} min`;}
 function updateIntripScreen(trip){
@@ -1137,10 +1150,36 @@ function updateDriverMarker(lat,lng){
   const screen=document.querySelector('.screen.active')?.id;
   if(screen==='screen-matched'||screen==='screen-pickup'){
     map.panTo([lng,lat],{duration:800});
-    if(currentTrip&&currentTrip.pickup_lat)drawPassengerRoute(lat,lng,currentTrip.pickup_lat,currentTrip.pickup_lng);
+    if(currentTrip&&currentTrip.pickup_lat){
+      drawPassengerRoute(lat,lng,currentTrip.pickup_lat,currentTrip.pickup_lng);
+      calcDriverETA(lat,lng,currentTrip.pickup_lat,currentTrip.pickup_lng);
+    }
   }else if(screen==='screen-intrip'){
     map.panTo([lng,lat],{duration:800});
     if(currentTrip&&currentTrip.dest_lat)drawPassengerRoute(lat,lng,currentTrip.dest_lat,currentTrip.dest_lng);
+  }
+}
+
+// Calculate driver ETA to pickup using Mapbox directions
+let etaFetchTimeout = null;
+async function calcDriverETA(dLat, dLng, pLat, pLng) {
+  // Throttle — only fetch every 15 seconds
+  if (etaFetchTimeout) return;
+  etaFetchTimeout = setTimeout(() => { etaFetchTimeout = null; }, 15000);
+
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${dLng},${dLat};${pLng},${pLat}?access_token=${mapboxgl.accessToken}&overview=false`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.routes && data.routes[0]) {
+      const mins = Math.ceil(data.routes[0].duration / 60);
+      const etaEl = document.getElementById('matched-eta');
+      if (etaEl) {
+        etaEl.textContent = mins <= 1 ? 'Arriving now' : `${mins} min away`;
+      }
+    }
+  } catch(e) {
+    console.log('ETA fetch error:', e);
   }
 }
 async function drawPassengerRoute(fromLat,fromLng,toLat,toLng){
