@@ -308,21 +308,41 @@ input::placeholder{color:var(--muted);}
         <p class="fs-12 color-muted" id="ride-meta-label">Calculating…</p>
       </div>
     </div>
-    <div class="ride-types">
-      <div class="ride-card selected" data-type="economy" onclick="selectRide('economy')">
-        <div class="ride-icon">🚗</div><div class="ride-name">Economy</div>
-        <div class="ride-price" id="price-economy">R—</div>
-        <div id="surge-economy" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
+    <div class="ride-types" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div class="ride-card selected" data-type="mini" onclick="selectRide('mini')">
+        <div class="ride-icon">🚗</div>
+        <div class="ride-name">Mini</div>
+        <div style="font-size:10px;color:var(--muted);">3-4 seats</div>
+        <div class="ride-price" id="price-mini">R—</div>
+        <div id="surge-mini" style="display:none;font-size:10px;color:var(--red);">🔥 Surge</div>
       </div>
-      <div class="ride-card" data-type="business" onclick="selectRide('business')">
-        <div class="ride-icon">🚙</div><div class="ride-name">Biz</div>
-        <div class="ride-price" id="price-business">R—</div>
-        <div id="surge-business" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
+      <div class="ride-card" data-type="compact" onclick="selectRide('compact')">
+        <div class="ride-icon">🚙</div>
+        <div class="ride-name">Compact</div>
+        <div style="font-size:10px;color:var(--muted);">4-5 seats</div>
+        <div class="ride-price" id="price-compact">R—</div>
+        <div id="surge-compact" style="display:none;font-size:10px;color:var(--red);">🔥 Surge</div>
       </div>
-      <div class="ride-card" data-type="msheto" onclick="selectRide('msheto')">
-        <div class="ride-icon">🚐</div><div class="ride-name">Msheto</div>
-        <div class="ride-price" id="price-msheto">R—</div>
-        <div id="surge-msheto" style="display:none;font-size:10px;color:var(--red);margin-top:2px;">🔥 Surge</div>
+      <div class="ride-card" data-type="cab" onclick="selectRide('cab')">
+        <div class="ride-icon">🚐</div>
+        <div class="ride-name">Cab</div>
+        <div style="font-size:10px;color:var(--muted);">7 seats</div>
+        <div class="ride-price" id="price-cab">R—</div>
+        <div id="surge-cab" style="display:none;font-size:10px;color:var(--red);">🔥 Surge</div>
+      </div>
+      <div class="ride-card" data-type="gedlela" onclick="selectRide('gedlela')">
+        <div class="ride-icon">🚌</div>
+        <div class="ride-name">Gedlela</div>
+        <div style="font-size:10px;color:var(--muted);">8+ seats</div>
+        <div class="ride-price" id="price-gedlela">R—</div>
+        <div id="surge-gedlela" style="display:none;font-size:10px;color:var(--red);">🔥 Surge</div>
+      </div>
+      <div class="ride-card" data-type="luxury" onclick="selectRide('luxury')" style="grid-column:2/4;">
+        <div class="ride-icon">🏎️</div>
+        <div class="ride-name">Luxury</div>
+        <div style="font-size:10px;color:var(--muted);">Premium car</div>
+        <div class="ride-price" id="price-luxury">R—</div>
+        <div id="surge-luxury" style="display:none;font-size:10px;color:var(--red);">🔥 Surge</div>
       </div>
     </div>
     <button class="btn btn-primary" onclick="showRideScreen('screen-confirm')">Continue</button>
@@ -611,7 +631,7 @@ input::placeholder{color:var(--muted);}
       <div class="payout-method-icon">🏦</div>
       <div class="payout-method-info">
         <div class="payout-method-name">Bank Account</div>
-        <div class="payout-method-sub">2–3 business days</div>
+        <div class="payout-method-sub">2–3 compact days</div>
       </div>
       <span class="payout-check">✓</span>
     </div>
@@ -643,7 +663,7 @@ input::placeholder{color:var(--muted);}
       <input type="text" id="payout-branch" placeholder="Branch code"/>
     </div>
     <button class="btn btn-primary mt-8" onclick="requestPayout()">Request withdrawal</button>
-    <p class="fs-12 color-muted text-center mt-12">Payouts are processed by Via99 Finance. Allow 2–3 business days for bank transfers.</p>
+    <p class="fs-12 color-muted text-center mt-12">Payouts are processed by Via99 Finance. Allow 2–3 compact days for bank transfers.</p>
   </div>
 </div>
 
@@ -717,7 +737,7 @@ let map,userMarker,destMarker,driverMarker;
 let userLat=-26.2041,userLng=28.0473;
 let destLat=null,destLng=null,destAddress='';
 let pickupAddress='Current location';
-let selectedRide='economy',selectedPayment='cash';
+let selectedRide='mini',selectedPayment='cash';
 let fareConfig={},currentTrip=null;
 let pollInterval=null,realtimeSub=null,selectedRating=0;
 let currentUser=null,currentProfile=null;
@@ -933,10 +953,13 @@ function calcFare(type){
   return{passengerFare:finalFare,driverEarnings,via99Fee,surgeMultiplier:surge,promoDiscount};
 }
 function calculateFares(){
-  ['economy','business','msheto'].forEach(t=>{
+  ['mini','compact','cab','gedlela','luxury'].forEach(t=>{
     const{passengerFare}=calcFare(t);
     const el=document.getElementById(`price-${t}`);
-    if(el)el.textContent=`R${passengerFare.toFixed(0)}`;
+    if(el)el.textContent=fareConfig[t]?`R${passengerFare.toFixed(0)}`:'—';
+    // Show/hide surge badge
+    const surge=document.getElementById(`surge-${t}`);
+    if(surge)surge.style.display=getSurgeMultiplier(t)>1?'block':'none';
   });
 }
 function updateRideScreen(){
@@ -1380,7 +1403,7 @@ async function requestPayout(){
   if(!bank||!acc||!branch){toast('Fill in all bank details.');return;}
   const balance=Number(currentProfile?.wallet_balance||0);
   if(amount>balance){toast(`Insufficient balance. Available: R${balance.toFixed(2)}`);return;}
-  toast('Withdrawal request submitted. Processing in 2–3 business days.');
+  toast('Withdrawal request submitted. Processing in 2–3 compact days.');
   document.getElementById('payout-amount').value='';
 }
 
@@ -1527,14 +1550,14 @@ async function loadSurgeConfig() {
   if (data) {
     data.forEach(s => {
       if (s.ride_type === 'all') {
-        ['economy','business','msheto'].forEach(t => surgeConfig[t] = s.multiplier);
+        ['mini','compact','cab'].forEach(t => surgeConfig[t] = s.multiplier);
       } else {
         surgeConfig[s.ride_type] = s.multiplier;
       }
     });
   }
   // Show surge badges
-  ['economy','business','msheto'].forEach(type => {
+  ['mini','compact','cab'].forEach(type => {
     const badge = document.getElementById(`surge-${type}`);
     if (badge) badge.style.display = surgeConfig[type] > 1 ? 'block' : 'none';
   });

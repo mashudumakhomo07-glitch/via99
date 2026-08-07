@@ -836,7 +836,7 @@
     <p class="label">Withdraw to</p>
     <div class="payout-method selected" id="dpm-bank" onclick="selectDriverPayoutMethod('bank')">
       <div class="payout-method-icon">🏦</div>
-      <div class="payout-method-info"><div class="payout-method-name">Bank Account</div><div class="payout-method-sub">2–3 business days</div></div>
+      <div class="payout-method-info"><div class="payout-method-name">Bank Account</div><div class="payout-method-sub">2–3 compact days</div></div>
       <span class="payout-check">✓</span>
     </div>
     <div class="payout-method" id="dpm-instant" onclick="selectDriverPayoutMethod('instant')">
@@ -1942,7 +1942,7 @@ async function requestDriverPayout() {
   const branch = document.getElementById('driver-payout-branch').value.trim();
   if (!amount || amount <= 0) { toast('Enter a valid amount.'); return; }
   if (!bank || !acc || !branch) { toast('Fill in all bank details.'); return; }
-  toast('Withdrawal request submitted. Processing within 2–3 business days.');
+  toast('Withdrawal request submitted. Processing within 2–3 compact days.');
   document.getElementById('driver-payout-amount').value = '';
 }
 
@@ -2423,7 +2423,7 @@ init();
     <img src="" class="logo-img" style="height:32px;margin-bottom:40px;" alt="Via99"/>
     <div style="font-size:56px;margin-bottom:20px;">⏳</div>
     <p style="font-size:22px;font-weight:700;margin-bottom:12px;">Application under review</p>
-    <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:32px;max-width:300px;">Your driver application is being reviewed by the Via99 team. You will receive an email within 2–3 business days.</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:32px;max-width:300px;">Your driver application is being reviewed by the Via99 team. You will receive an email within 2–3 compact days.</p>
     <div style="background:rgba(232,38,26,0.1);border:1px solid rgba(232,38,26,0.3);color:var(--red);padding:10px 24px;border-radius:100px;font-size:14px;font-weight:600;margin-bottom:32px;">⏳ Pending approval</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:24px;">Make sure your vehicle is roadworthy and your documents are up to date while you wait.</p>
     <button class="btn btn-ghost" style="max-width:280px;" onclick="signOut()">Sign out</button>

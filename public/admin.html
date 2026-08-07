@@ -363,9 +363,9 @@ input::placeholder{color:var(--muted);}
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
           <select id="surge-type" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);">
             <option value="all">All ride types</option>
-            <option value="economy">Economy</option>
-            <option value="business">Business</option>
-            <option value="msheto">Msheto</option>
+            <option value="mini">Mini</option>
+            <option value="compact">Compact</option>
+            <option value="cab">Cab</option>
           </select>
           <select id="surge-multiplier" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);">
             <option value="1.2">1.2x — 20% surge</option>
@@ -836,7 +836,7 @@ async function loadRevenuePage() {
   document.getElementById('rev-driver').textContent = `R${sum(allTrips, 'driver_earnings').toFixed(2)}`;
 
   // Breakdown by ride type
-  const types = ['economy', 'business', 'msheto'];
+  const types = ['mini', 'compact', 'cab'];
   const el = document.getElementById('revenue-breakdown-table');
   el.innerHTML = types.map(type => {
     const filtered = (allTrips || []).filter(t => t.ride_type === type);
