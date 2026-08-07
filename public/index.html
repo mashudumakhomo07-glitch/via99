@@ -1048,7 +1048,6 @@ function subscribeToTrip() {
           .eq('id', currentTrip.id)
           .single();
         if (full) currentTrip = full;
-        unsubscribeTrip();
         showMatchedScreen(currentTrip);
         if (!realtimeSub) subscribeDriverLocation(updated.driver_id);
       } else if (updated.status === 'picking_up') {
